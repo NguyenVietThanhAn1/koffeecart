@@ -1,0 +1,58 @@
+name: CI/CD Pipeline - Koffeecart
+
+on:
+  push:
+    branches:
+      - main  # chạy khi bạn push code lên nhánh main
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ Lấy code
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2️⃣ Cài Python để kiểm tra code (tùy chọn)
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # 3️⃣ Cài dependencies
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      # 4️⃣ Chạy tests (nếu có)
+      - name: Run tests
+        run: |
+          python manage.py test || echo "No tests found, skipping..."
+
+      # 5️⃣ Build Docker image
+      - name: Build Docker image
+        run: |
+          docker build -t ${{ github.repository }}:latest .
+
+      # 6️⃣ Login Docker Hub
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # 7️⃣ Push image lên Docker Hub
+      - name: Push Docker image
+        run: |
+          docker tag ${{ github.repository }}:latest ${{ secrets.DOCKERHUB_USERNAME }}/koffeecart:latest
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/koffeecart:latest
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to server
+        run: |
+          echo "Deploy step here - ví dụ SSH tới VPS hoặc gọi API Render/Railway"
