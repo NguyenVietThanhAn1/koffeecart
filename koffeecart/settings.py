@@ -27,7 +27,7 @@ SECRET_KEY = 'django-insecure-2+3-_)()^by@(gcc=p2*m(v37jd%&c=!n7=fu#v$!p8-+17c*v
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['koffeecart.onrender.com', 'localhost', '127.0.0.1']
 
 
 # Application definition
