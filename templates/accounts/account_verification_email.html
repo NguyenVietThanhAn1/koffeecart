@@ -1,10 +1,10 @@
 {% autoescape off %}
 
-Hi {{ user.first_name }},
+Hi {{user.first_name}},
 
-Please click on the link below to verify your email address and activate your account:
-http://{{ domain}}{% url 'activate' uidb64=uid token=token %}
+Please click on below link to confirm your registration.
+http://{{domain}}{% url 'activate' uidb64=uid token=token %}
 
-if you did not make this request, please ignore this email.
+If you think it's not you, please ignore this email.
 
 {% endautoescape %}
