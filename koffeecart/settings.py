@@ -13,21 +13,16 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 from pathlib import Path
 from decouple import config
 import os
-
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
+import sys
+ 
 BASE_DIR = Path(__file__).resolve(strict=True).parent.parent
 
+SECRET_KEY = config('SECRET_KEY')
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
+DEBUG = config('DEBUG', default=False, cast=bool)
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-2+3-_)()^by@(gcc=p2*m(v37jd%&c=!n7=fu#v$!p8-+17c*v'
-
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
-
-ALLOWED_HOSTS = ['koffeecart.onrender.com', 'localhost', '127.0.0.1']
+ 
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost').split(',')
 
 CSRF_TRUSTED_ORIGINS = [
     "https://koffeecart.onrender.com",
@@ -96,12 +91,12 @@ AUTH_USER_MODEL = 'accounts.Account'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-        "USER": os.getenv("DB_USER"),
-        "PASSWORD": os.getenv("DB_PASS"),
-        "HOST": os.getenv("DB_HOST"),
-        "PORT": os.getenv("DB_PORT", "5432"),
+        'ENGINE': config('DB_ENGINE', default='django.db.backends.sqlite3'),
+        'NAME':  config('DB_NAME', default=str(BASE_DIR / 'db.sqlite3')),
+        "USER": config('DB_USER', default=''),
+        "PASSWORD": config('DB_PASSWORD', default=''),
+        "HOST": config('DB_HOST', default=''),
+        "PORT": config('DB_PORT', default=''),
     }
 }
 
@@ -167,3 +162,11 @@ EMAIL_PORT = 587
 EMAIL_HOST_USER = 'kingofanglels@gmail.com'
 EMAIL_HOST_PASSWORD = 'phpc sgam skti eael'
 EMAIL_USE_TLS = True
+
+if 'collectstatic' in sys.argv:
+    DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.sqlite3',
+                'NAME': ':MEMORY:',
+            }
+    }

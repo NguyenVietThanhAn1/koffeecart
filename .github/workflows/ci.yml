@@ -1,0 +1,136 @@
+name: Koffeecart CI/CD
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request: 
+    branches: [ "main" ]
+
+env:
+  IMAGE_NAME: nguyenvietthanhan1/koffeecart
+
+jobs:
+  lint:
+    name: Lint & Syntax Check
+    runs-on: ubuntu-latest
+
+    steps: 
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Check Django configuration
+        env:
+          SECRET_KEY: "ci-test-secret-key-not-real"
+          DEBUG: "True"
+          ALLOWED_HOSTS: "localhost"
+          DB_ENGINE: "django.db.backends.sqlite3"
+          DB_NAME: ":memory:"
+          DB_USER: ""
+          DB_PASSWORD: ""
+          DB_HOST: ""
+          DB_PORT: ""
+        run: |
+          python manage.py check
+
+      - name: Check for missing migrations
+        env:
+          SECRET_KEY: "ci-test-secret-key-not-real"
+          DEBUG: "True"
+          ALLOWED_HOSTS: "localhost"
+          DB_ENGINE: "django.db.backends.sqlite3"
+          DB_NAME: "/tmp/test.db"
+          DB_USER: ""
+          DB_PASSWORD: ""
+          DB_HOST: "" 
+          DB_PORT: ""
+        run: |
+          python manage.py migrate --run-syncdb
+          python manage.py makemigrations --check --dry-run
+
+  build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: lint
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            --tag ${{ env.IMAGE_NAME }}:${{ github.sha }} \
+            --tag ${{ env.IMAGE_NAME }}:latest \
+            --file Dockerfile \
+
+      - name: Verify image was built
+        run: |
+          docker images | grep ${{ env.IMAGE_NAME }}
+
+      - name: Smoke test the image
+        run: |
+          docker run --rm -d \
+            --name koffeecart_ci_test \
+            -e SECRET_KEY="ci-smoke-test-key" \
+            -e DEBUG="True" \
+            -e ALLOWED_HOSTS="localhost" \
+            -e DB_ENGINE="django.db.backends.sqlite3" \
+            -e DB_NAME="/tmp/ci_test.db" \
+            -e DB_USER="" \
+            -e DB_PASSWORD="" \
+            -e DB_HOST="" \
+            -e DB_PORT="" \
+            -P 8000:8000 \
+            ${{ env.IMAGE_NAME }}:latest
+
+          sleep 10
+          
+          docker ps | grep koffeecart_ci_test
+
+          curl --fail --retry 3 --retry-delay 3 http://localhost:8000 || \
+          (docker logs koffeecart_ci_test && exit 1)
+          docker stop koffeecart_ci_test
+
+  push:
+    name: Push to Docker Hub
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps: 
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/koffeecart:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/koffeecart:${{ github.sha }}
+
+      - name: Image digest
+        run: echo "Image pushed successfully"
+
