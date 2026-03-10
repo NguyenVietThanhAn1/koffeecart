@@ -94,6 +94,10 @@ jobs:
             -e DB_PORT="" \
             -p 8000:8000 \
             ${{ env.IMAGE_NAME }}:latest
+          
+          sleep 5
+
+          docker exec koffeecart_ci_test python manage.py migrate
 
           sleep 10
           
