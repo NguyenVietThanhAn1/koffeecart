@@ -7,7 +7,7 @@ on:
     branches: [ "main" ]
 
 env:
-  IMAGE_NAME: nguyenvietthanhan1/koffeecart
+  IMAGE_NAME: annguyn0810/koffeecart
 
 jobs:
   lint:
@@ -74,7 +74,7 @@ jobs:
             --tag ${{ env.IMAGE_NAME }}:${{ github.sha }} \
             --tag ${{ env.IMAGE_NAME }}:latest \
             --file Dockerfile \
-
+            .
       - name: Verify image was built
         run: |
           docker images | grep ${{ env.IMAGE_NAME }}
@@ -92,7 +92,7 @@ jobs:
             -e DB_PASSWORD="" \
             -e DB_HOST="" \
             -e DB_PORT="" \
-            -P 8000:8000 \
+            -p 8000:8000 \
             ${{ env.IMAGE_NAME }}:latest
 
           sleep 10
