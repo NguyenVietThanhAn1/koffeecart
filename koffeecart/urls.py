@@ -18,6 +18,25 @@ from django.urls import path, include
 from . import views
 from django.conf.urls.static import static
 from django.conf import settings
+from django.http import JsonResponse
+from django.db import connection
+
+def health_check(request):
+    try:
+        connection.ensure_connection()
+        db_status = "ok"
+    except Exception as e:
+        db_status = f"error: {str(e)}"
+
+    status = {
+        "status": "ok" if db_status == "ok" else "degraded",
+        "app": "koffeecart",
+        "database": db_status,
+    }
+
+    http_status = 200 if status["status"] == "ok" else 503
+    return JsonResponse(status, status=http_status)
+
 
 urlpatterns = [
     #path('admin/', admin.site.urls),
@@ -26,7 +45,7 @@ urlpatterns = [
     path('store/', include('store.urls')),
     path('cart/', include('carts.urls')),
     path('accounts/', include('accounts.urls')),
-
+    path('health/', health_check, name='health_check'),
     # ORDERS
     path('orders/', include('orders.urls')),
 ] 
