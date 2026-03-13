@@ -180,6 +180,8 @@ if not DEBUG:
         'CSRF_TRUSTED_ORIGINS',
         default='http://localhost'
     ).split(',')
+LOG_DIR = os.path.join(BASE_DIR, "logs")
+os.makedirs(LOG_DIR, exist_ok=True)
 
 LOGGING = {
     'version': 1,
@@ -199,6 +201,7 @@ LOGGING = {
             'class': 'logging.FileHandler',
             'filename': '/app/logs/django.log',
             'formatter': 'verbose',
+            'filename': os.path.join(LOG_DIR, 'django.log'),
         },
     },
     'root': {
