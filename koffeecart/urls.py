@@ -20,13 +20,19 @@ from django.conf.urls.static import static
 from django.conf import settings
 from django.http import JsonResponse
 from django.db import connection
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 def health_check(request):
     try:
         connection.ensure_connection()
         db_status = "ok"
-    except Exception as e:
-        db_status = f"error: {str(e)}"
+    except Exception:
+        # Details go to the server log only; never return exception text to clients.
+        logger.exception("Health check: database connection failed")
+        db_status = "error"
 
     status = {
         "status": "ok" if db_status == "ok" else "degraded",

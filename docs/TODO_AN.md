@@ -7,3 +7,11 @@
 - [ ] Chọn hướng cho lỗi S1 (thanh toán): xác minh PayPal phía server, hay mock/COD. Cần trước Phase 2.
 - [ ] Ảnh sản phẩm trong `media/` đã ra khỏi git. Quyết định cách giữ ảnh (volume, seed lại, hoặc object storage).
 - [ ] (Tuỳ chọn) Chạy `git add --renormalize .` để chuẩn hoá CRLF cũ, khi muốn.
+
+## Từ Phase 1
+- [ ] Bật Docker Desktop rồi tự chạy kiểm chứng Phase 1 (Claude không build được vì daemon tắt). Lệnh ở cuối báo cáo Phase 1.
+- [ ] Tạo `.env.prod` thật (không commit): `SECRET_KEY`, `DB_ENGINE=django.db.backends.postgresql`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_PORT=5432`, `ALLOWED_HOSTS` (phải có `localhost`), `CSRF_TRUSTED_ORIGINS`, `EMAIL_*`.
+- [ ] Nếu VM đã có volume `static_volume` cũ (chủ sở hữu root): chạy `docker compose --env-file .env.prod -f docker-compose.prod.yml down -v` một lần. Lưu ý `-v` xoá luôn volume Postgres, nên backup trước bằng `backups/backup.sh`.
+- [ ] Nếu đã chạy dưới tên project cũ, xoá container cũ (`koffeecart_web`...) trước khi `up`, vì tên project compose vừa đổi.
+- [ ] Trước khi CI push image (Phase 3), deploy bằng `./deploy.sh --build` trên VM.
+- [ ] `monitor.sh` còn dùng `docker-compose.prod.yml` không kèm `--env-file`. Kiểm tra lại khi chạy trên VM.

@@ -10,15 +10,16 @@
 set -e
 
 # ── Config ────────────────────────────────────────────────
-PROJECT_DIR="/home/vagrant/projects/koffeecart"
-BACKUP_DIR="$PROJECT_DIR/backups"
+BACKUP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$BACKUP_DIR")"
 COMPOSE_FILE="$PROJECT_DIR/docker-compose.prod.yml"
+ENV_FILE="$PROJECT_DIR/.env.prod"
 RETENTION_DAYS=7        # Giữ backup trong 7 ngày
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 BACKUP_FILE="$BACKUP_DIR/koffeecart_$TIMESTAMP.sql.gz"
 
 # Load DB credentials từ .env.prod
-source <(grep -E "^DB_" $PROJECT_DIR/.env.prod)
+source <(grep -E "^DB_" "$ENV_FILE")
 
 # ── Colors ────────────────────────────────────────────────
 RED='\033[0;31m'
@@ -33,13 +34,13 @@ do_backup() {
     echo -e "${BLUE}[$(date '+%H:%M:%S')] Starting backup...${NC}"
 
     # Kiểm tra container db đang chạy
-    if ! docker compose -f $COMPOSE_FILE ps db | grep -q "Up"; then
+    if [ -z "$(docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps --status running -q db)" ]; then
         echo -e "${RED} Database container is not running!${NC}"
         exit 1
     fi
 
     # Chạy pg_dump bên trong container, nén output
-    docker compose -f $COMPOSE_FILE exec -T db \
+    docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T db \
         pg_dump \
         --username="$DB_USER" \
         --dbname="$DB_NAME" \
@@ -132,18 +133,18 @@ do_restore() {
     fi
 
     echo -e "\n${BLUE}[1/3] Dropping existing database...${NC}"
-    docker compose -f $COMPOSE_FILE exec -T db \
+    docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T db \
         psql -U "$DB_USER" -d postgres \
         -c "DROP DATABASE IF EXISTS $DB_NAME;" \
         -c "CREATE DATABASE $DB_NAME OWNER $DB_USER;"
 
     echo -e "${BLUE}[2/3] Restoring from backup...${NC}"
     gunzip -c "$RESTORE_FILE" | \
-        docker compose -f $COMPOSE_FILE exec -T db \
+        docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T db \
         psql --username="$DB_USER" --dbname="$DB_NAME"
 
     echo -e "${BLUE}[3/3] Running Django migrations (safety check)...${NC}"
-    docker compose -f $COMPOSE_FILE exec -T web \
+    docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T web \
         python manage.py migrate --noinput
 
     echo -e "\n${GREEN}✅ Restore complete from: $RESTORE_FILE${NC}"

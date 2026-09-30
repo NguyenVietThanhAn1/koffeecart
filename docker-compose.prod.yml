@@ -1,4 +1,6 @@
-version: "3.9"
+# Run with:  docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
+# --env-file is needed because ${DB_NAME} etc. below are read from .env.prod, not from .env.
+name: koffeecart
 
 services:
   db:
@@ -8,16 +10,14 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backups:/backups
-    env_file:
-      - .env.prod
     environment:
-      POSTGRES_DB: ${DB_NAME}
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME:?set DB_NAME in .env.prod}
+      POSTGRES_USER: ${DB_USER:?set DB_USER in .env.prod}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env.prod}
     networks:
       - koffeecart_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -26,14 +26,14 @@ services:
         limits:
           memory: 512M
 
-  web:
-    build: .
-    container_name: koffeecart_web
-    restart: always
+  # One-shot job: apply migrations and refresh the shared static volume, then exit.
+  migrate:
+    image: ${WEB_IMAGE:-koffeecart-web}:${IMAGE_TAG:-latest}
+    container_name: koffeecart_migrate
+    restart: "no"
+    command: sh -c "python manage.py migrate --noinput && python manage.py collectstatic --noinput"
     volumes:
       - static_volume:/app/staticfiles
-      - media_volume:/app/media
-      - ./logs:/app/logs
     env_file:
       - .env.prod
     environment:
@@ -43,6 +43,25 @@ services:
         condition: service_healthy
     networks:
       - koffeecart_network
+
+  web:
+    build: .
+    image: ${WEB_IMAGE:-koffeecart-web}:${IMAGE_TAG:-latest}
+    container_name: koffeecart_web
+    restart: always
+    volumes:
+      - media_volume:/app/media
+    env_file:
+      - .env.prod
+    environment:
+      - DB_HOST=db
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - koffeecart_network
     deploy:
       resources:
         limits:
@@ -50,10 +69,8 @@ services:
     logging:
       driver: "json-file"
       options:
-          max-size: "10m"
-          max-file: "5"
-    command: >
-          sh -c "python manage.py migrate --noinput && python manage.py collectstatic --noinput && gunicorn koffeecart.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 120 --access-logfile - --error-logfile - --log-level info"
+        max-size: "10m"
+        max-file: "5"
 
   nginx:
     image: nginx:1.25-alpine
@@ -67,9 +84,15 @@ services:
       - media_volume:/app/media:ro
       - ./logs:/var/log/nginx
     depends_on:
-      - web
+      web:
+        condition: service_healthy
     networks:
       - koffeecart_network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/nginx-health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
     logging:
       driver: "json-file"
       options:
@@ -80,6 +103,7 @@ volumes:
   postgres_data:
   static_volume:
   media_volume:
+
 networks:
   koffeecart_network:
     driver: bridge

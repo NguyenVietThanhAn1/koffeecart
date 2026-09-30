@@ -1,0 +1,14 @@
+# Dev-only settings, merged automatically by `docker compose up`.
+# Not used by docker-compose.prod.yml.
+services:
+  migrate:
+    volumes:
+      - .:/app
+  web:
+    command: python manage.py runserver 0.0.0.0:8000
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    environment:
+      - DEBUG=True

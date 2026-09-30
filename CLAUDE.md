@@ -27,5 +27,5 @@ export SECRET_KEY=dev DEBUG=True ALLOWED_HOSTS=localhost,127.0.0.1
 python manage.py migrate && python manage.py runserver
 
 # stack production
-docker compose -f docker-compose.prod.yml up -d --build
+docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
 ```
