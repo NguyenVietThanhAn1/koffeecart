@@ -17,7 +17,8 @@ from django.core.mail import EmailMessage
 
 from carts.views import _cart_id
 from carts.models import Cart, CartItem
-import requests
+from urllib.parse import parse_qs, urlparse
+from django.utils.http import url_has_allowed_host_and_scheme
 
 
 def register(request):
@@ -111,16 +112,17 @@ def login(request):
                 pass
             auth.login(request, user)
             messages.success(request, 'You are now logged in.')
-            url = request.META.get('HTTP_REFERER')
-            try:
-                query = requests.utils.urlparse(url).query
-                # next=/cart/checkout/
-                params = dict(x.split('=') for x in query.split('&'))
-                if 'next' in params:
-                    nextPage = params['next']
-                    return redirect(nextPage)
-            except:
-                return redirect('dashboard')
+            # The login page is opened as /accounts/login/?next=/cart/checkout/,
+            # so read "next" from the Referer, but only follow it if it stays on this site.
+            referer = request.META.get('HTTP_REFERER', '')
+            next_url = parse_qs(urlparse(referer).query).get('next', [''])[0]
+            if next_url and url_has_allowed_host_and_scheme(
+                next_url,
+                allowed_hosts={request.get_host()},
+                require_https=request.is_secure(),
+            ):
+                return redirect(next_url)
+            return redirect('dashboard')
         else:
             messages.error(request, 'Invalid login credentials')
             return redirect('login')
@@ -285,8 +287,8 @@ def change_password(request):
 
 @login_required(login_url='login')
 def order_detail(request, order_id):
-    order_detail = OrderProduct.objects.filter(order__order_number=order_id)
-    order = Order.objects.get(order_number=order_id)
+    order = get_object_or_404(Order, order_number=order_id, user=request.user)
+    order_detail = OrderProduct.objects.filter(order=order)
     subtotal = 0
     for i in order_detail:
         subtotal += i.product_price * i.quantity

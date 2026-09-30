@@ -43,3 +43,7 @@ Thumbs.db
 # Deploy state and DB dumps
 .deploy_*
 backups/*.sql.gz
+
+# Tests
+.pytest_cache/
+.coverage

@@ -1,4 +1,6 @@
 from django.shortcuts import render, redirect
+from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_POST
 from django.http import HttpResponse, JsonResponse
 from carts.models import CartItem
 from .forms import OrderForm
@@ -10,6 +12,8 @@ from django.core.mail import EmailMessage
 from django.template.loader import render_to_string
 
 
+@login_required(login_url='login')
+@require_POST
 def payments(request):
     body = json.loads(request.body)
     order = Order.objects.get(user=request.user, is_ordered=False, order_number=body['orderID'])
@@ -74,6 +78,7 @@ def payments(request):
     }
     return JsonResponse(data)
 
+@login_required(login_url='login')
 def place_order(request, total=0, quantity=0,):
     current_user = request.user
 
@@ -134,12 +139,13 @@ def place_order(request, total=0, quantity=0,):
         return redirect('checkout')
 
 
+@login_required(login_url='login')
 def order_complete(request):
     order_number = request.GET.get('order_number')
     transID = request.GET.get('payment_id')
 
     try:
-        order = Order.objects.get(order_number=order_number, is_ordered=True)
+        order = Order.objects.get(order_number=order_number, user=request.user, is_ordered=True)
         ordered_products = OrderProduct.objects.filter(order_id=order.id)
 
         subtotal = 0
