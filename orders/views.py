@@ -1,82 +1,106 @@
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_POST
-from django.http import HttpResponse, JsonResponse
+from django.http import HttpResponseBadRequest
+from django.contrib import messages
+from django.db import transaction
+from django.urls import reverse
 from carts.models import CartItem
 from .forms import OrderForm
 import datetime
 from .models import Order, Payment, OrderProduct
-import json
+import logging
+import uuid
 from store.models import Product
 from django.core.mail import EmailMessage
 from django.template.loader import render_to_string
+
+logger = logging.getLogger(__name__)
+
+
+class OutOfStock(Exception):
+    pass
 
 
 @login_required(login_url='login')
 @require_POST
 def payments(request):
-    body = json.loads(request.body)
-    order = Order.objects.get(user=request.user, is_ordered=False, order_number=body['orderID'])
+    """Cash on delivery: turn a pending order into a placed order.
 
-    # Store transaction details inside Payment model
-    payment = Payment(
-        user = request.user,
-        payment_id = body['transID'],
-        payment_method = body['payment_method'],
-        amount_paid = order.order_total,
-        status = body['status'],
-    )
-    payment.save()
+    Nothing that decides money or status comes from the client. The only input is
+    the order number; amount, method, status and transaction id are set here.
+    """
+    order_number = request.POST.get('orderID', '').strip()
+    if not order_number:
+        return HttpResponseBadRequest('Missing orderID')
 
-    order.payment = payment
-    order.is_ordered = True
-    order.save()
+    try:
+        with transaction.atomic():
+            # Lock the order row so a double submit cannot place it twice.
+            order = Order.objects.select_for_update().filter(
+                user=request.user, is_ordered=False, order_number=order_number
+            ).first()
+            if order is None:
+                return HttpResponseBadRequest('Order not found')
 
-    # Move the cart items to Order Product table
-    cart_items = CartItem.objects.filter(user=request.user)
+            cart_items = list(CartItem.objects.filter(user=request.user))
+            if not cart_items:
+                return HttpResponseBadRequest('Cart is empty')
 
-    for item in cart_items:
-        orderproduct = OrderProduct()
-        orderproduct.order_id = order.id
-        orderproduct.payment = payment
-        orderproduct.user_id = request.user.id
-        orderproduct.product_id = item.product_id
-        orderproduct.quantity = item.quantity
-        orderproduct.product_price = item.product.price
-        orderproduct.ordered = True
-        orderproduct.save()
+            # Lock the products, then check stock before changing anything.
+            products = Product.objects.select_for_update().in_bulk(
+                [item.product_id for item in cart_items])
+            needed = {}
+            for item in cart_items:
+                needed[item.product_id] = needed.get(item.product_id, 0) + item.quantity
+            for product_id, qty in needed.items():
+                if products[product_id].stock < qty:
+                    raise OutOfStock(products[product_id].product_name)
 
-        cart_item = CartItem.objects.get(id=item.id)
-        product_variation = cart_item.variations.all()
-        orderproduct = OrderProduct.objects.get(id=orderproduct.id)
-        orderproduct.variations.set(product_variation)
-        orderproduct.save()
+            payment = Payment.objects.create(
+                user=request.user,
+                payment_id='COD-' + uuid.uuid4().hex[:12].upper(),
+                payment_method='COD',
+                amount_paid=order.order_total,
+                status='Pending',  # cash is collected on delivery
+            )
+            order.payment = payment
+            order.is_ordered = True
+            order.save()
 
+            for item in cart_items:
+                orderproduct = OrderProduct.objects.create(
+                    order=order,
+                    payment=payment,
+                    user=request.user,
+                    product_id=item.product_id,
+                    quantity=item.quantity,
+                    product_price=item.product.price,
+                    ordered=True,
+                )
+                orderproduct.variations.set(item.variations.all())
+                products[item.product_id].stock -= item.quantity
 
-        # Reduce the quantity of the sold products
-        product = Product.objects.get(id=item.product_id)
-        product.stock -= item.quantity
-        product.save()
+            for product in products.values():
+                product.save()
+            CartItem.objects.filter(user=request.user).delete()
+    except OutOfStock as exc:
+        messages.error(request, f'Sorry, "{exc}" does not have enough stock.')
+        return redirect('cart')
 
-    # Clear cart
-    CartItem.objects.filter(user=request.user).delete()
+    # Email is best effort: the order is already saved, so an SMTP failure must not undo it.
+    try:
+        message = render_to_string('orders/order_recieved_email.html', {
+            'user': request.user,
+            'order': order,
+        })
+        EmailMessage('Thank you for your order!', message, to=[request.user.email]).send()
+    except Exception:
+        logger.exception('Could not send order email for order %s', order.order_number)
 
-    # Send order recieved email to customer
-    mail_subject = 'Thank you for your order!'
-    message = render_to_string('orders/order_recieved_email.html', {
-        'user': request.user,
-        'order': order,
-    })
-    to_email = request.user.email
-    send_email = EmailMessage(mail_subject, message, to=[to_email])
-    send_email.send()
+    return redirect(
+        reverse('order_complete') + f'?order_number={order.order_number}&payment_id={payment.payment_id}')
 
-    # Send order number and transaction id back to sendData method via JsonResponse
-    data = {
-        'order_number': order.order_number,
-        'transID': payment.payment_id,
-    }
-    return JsonResponse(data)
 
 @login_required(login_url='login')
 def place_order(request, total=0, quantity=0,):

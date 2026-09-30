@@ -52,3 +52,15 @@ def make_order(db):
             order.save()
         return order
     return _make
+
+
+@pytest.fixture
+def order_with_cart(db, product, make_order):
+    """A pending (unpaid) order plus a cart line: returns a factory(user, qty)."""
+    from carts.models import CartItem
+
+    def _make(user, qty=1, number='202601012'):
+        order = make_order(user, number=number, paid=False)
+        CartItem.objects.create(user=user, product=product, quantity=qty)
+        return order
+    return _make
