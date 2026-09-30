@@ -157,11 +157,15 @@ MESSAGE_TAGS = {
 }
 
 # SMTP configuration
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 587
-EMAIL_HOST_USER = 'kingofanglels@gmail.com'
-EMAIL_HOST_PASSWORD = 'phpc sgam skti eael'
-EMAIL_USE_TLS = True
+EMAIL_BACKEND = config(
+    'EMAIL_BACKEND',
+    default='django.core.mail.backends.console.EmailBackend',
+)
+EMAIL_HOST = config('EMAIL_HOST', default='smtp.gmail.com')
+EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
+EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
+EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
+EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
 
 if 'collectstatic' in sys.argv:
     DATABASES = {

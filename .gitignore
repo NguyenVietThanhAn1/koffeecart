@@ -15,6 +15,7 @@ local_settings.py
 db.sqlite3
 db.sqlite3-journal
 media/
+/static/
 
 # Virtual Environment
 venv/
@@ -24,9 +25,10 @@ env/
 # Environment variables (NEVER commit this)
 .env
 .env.*
+!.env.example
 
-# Docker
-.dockerignore
+# Vagrant
+.vagrant/
 
 # IDE
 .vscode/
@@ -36,7 +38,3 @@ env/
 # OS
 .DS_Store
 Thumbs.db
-EOF
-*.log
-backups/*.sql.gz
-backups/*.sql
