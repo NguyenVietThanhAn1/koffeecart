@@ -1,10 +1,11 @@
 import json
+from decimal import Decimal
 
+import pytest
 from django.urls import reverse
 
-
-def _login_url(path):
-    return reverse('login') + '?next=' + path
+from carts.models import CartItem
+from orders.models import Order, Payment
 
 
 # S4 — anonymous users must be sent to login, not hit a 500
@@ -51,11 +52,6 @@ def test_order_complete_other_user_redirected(client, user_a, user_b, make_order
 
 
 # ---- S1 / B2 / B6: COD payment is decided by the server, not by the client ----
-import pytest
-from carts.models import CartItem
-from orders.models import Order, Payment
-
-
 def _pay(client, **data):
     return client.post(reverse('payments'), data)
 
@@ -88,7 +84,7 @@ def test_cod_payment_ignores_client_supplied_fields(client, user_a, product, ord
     assert order.payment.payment_method == 'COD'
     assert order.payment.status == 'Pending'
     assert order.payment.payment_id != 'FAKE'
-    assert order.payment.amount_paid == str(order.order_total)
+    assert order.payment.amount_paid == order.order_total
     product.refresh_from_db()
     assert product.stock == 4
     assert not CartItem.objects.filter(user=user_a).exists()
@@ -152,3 +148,65 @@ def test_email_failure_does_not_break_order(client, user_a, order_with_cart, mon
     assert _pay(client, orderID=order.order_number).status_code == 302
     order.refresh_from_db()
     assert order.is_ordered is True
+
+
+# ---- B4: an invalid billing form re-renders checkout with errors (used to return None -> 500) ----
+GOOD_FORM = {
+    'first_name': 'An', 'last_name': 'Nguyen', 'phone': '0900000000',
+    'email': 'an@example.com', 'address_line_1': '1 Coffee St', 'address_line_2': '',
+    'city': 'Saigon', 'state': 'HCM', 'country': 'VN', 'order_note': '',
+}
+
+
+def test_place_order_invalid_form_rerenders_checkout(client, user_a, product):
+    CartItem.objects.create(user=user_a, product=product, quantity=1)
+    client.force_login(user_a)
+    bad = dict(GOOD_FORM, phone='1' * 40, first_name='')
+    resp = client.post(reverse('place_order'), bad)
+    assert resp.status_code == 200
+    assert 'store/checkout.html' in [t.name for t in resp.templates]
+    assert Order.objects.count() == 0
+    assert b'Ensure this value has at most 15 characters' in resp.content
+    # what the user already typed is kept, so they only fix the wrong fields
+    assert b'value="Saigon"' in resp.content
+
+
+def test_place_order_valid_form_stores_exact_decimal_money(client, user_a, make_product):
+    p = make_product(price='19.99')
+    CartItem.objects.create(user=user_a, product=p, quantity=3)
+    client.force_login(user_a)
+    resp = client.post(reverse('place_order'), GOOD_FORM)
+    assert resp.status_code == 200
+    order = Order.objects.get()
+    assert order.is_ordered is False
+    assert order.tax == Decimal('1.20')
+    assert order.order_total == Decimal('61.17')
+
+
+def test_completed_order_keeps_decimal_prices(client, user_a, make_product):
+    p = make_product(price='19.99')
+    CartItem.objects.create(user=user_a, product=p, quantity=3)
+    client.force_login(user_a)
+    client.post(reverse('place_order'), GOOD_FORM)
+    order = Order.objects.get()
+    assert _pay(client, orderID=order.order_number).status_code == 302
+    order.refresh_from_db()
+    assert order.payment.amount_paid == Decimal('61.17')
+    assert order.orderproduct_set.get().product_price == Decimal('19.99')
+
+
+# ---- the "order placed" page shows what was ordered (it used to render empty tables) ----
+def test_order_complete_page_shows_order_details(client, user_a, make_product):
+    p = make_product(price='19.99')
+    CartItem.objects.create(user=user_a, product=p, quantity=3)
+    client.force_login(user_a)
+    client.post(reverse('place_order'), GOOD_FORM)
+    order = Order.objects.get()
+    resp = client.post(reverse('payments'), {'orderID': order.order_number}, follow=True)
+    assert resp.status_code == 200
+    html = resp.content.decode()
+    assert order.order_number in html
+    assert p.product_name in html
+    assert '59.97' in html and '1.20' in html and '61.17' in html
+    assert 'Cash on delivery' in html
+    assert 'Make Payment' not in html

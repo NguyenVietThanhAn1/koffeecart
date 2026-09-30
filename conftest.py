@@ -64,3 +64,22 @@ def order_with_cart(db, product, make_order):
         CartItem.objects.create(user=user, product=product, quantity=qty)
         return order
     return _make
+
+
+@pytest.fixture
+def make_product(db):
+    """Factory for extra products (unique name and slug per call)."""
+    from decimal import Decimal
+    from category.models import Category
+    from store.models import Product
+    counter = {'n': 0}
+
+    def _make(price='10.00', stock=10, slug=None):
+        counter['n'] += 1
+        n = counter['n']
+        cat, _ = Category.objects.get_or_create(slug='beans', defaults={'category_name': 'Beans'})
+        return Product.objects.create(
+            product_name=f'Product {n}', slug=slug or f'product-{n}', price=Decimal(price),
+            stock=stock, category=cat, images='photos/products/x.jpg',
+        )
+    return _make

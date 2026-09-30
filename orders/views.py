@@ -6,6 +6,7 @@ from django.contrib import messages
 from django.db import transaction
 from django.urls import reverse
 from carts.models import CartItem
+from carts.pricing import calculate_totals
 from .forms import OrderForm
 import datetime
 from .models import Order, Payment, OrderProduct
@@ -103,64 +104,43 @@ def payments(request):
 
 
 @login_required(login_url='login')
-def place_order(request, total=0, quantity=0,):
+def place_order(request):
     current_user = request.user
 
-    # If the cart count is less than or equal to 0, then redirect back to shop
-    cart_items = CartItem.objects.filter(user=current_user)
-    cart_count = cart_items.count()
-    if cart_count <= 0:
+    # If the cart is empty, send the user back to the shop
+    cart_items = CartItem.objects.filter(user=current_user).select_related('product')
+    if not cart_items.exists():
         return redirect('store')
 
-    grand_total = 0
-    tax = 0
-    for cart_item in cart_items:
-        total += (cart_item.product.price * cart_item.quantity)
-        quantity += cart_item.quantity
-    tax = (2 * total)/100
-    grand_total = total + tax
-
-    if request.method == 'POST':
-        form = OrderForm(request.POST)
-        if form.is_valid():
-            # Store all the billing information inside Order table
-            data = Order()
-            data.user = current_user
-            data.first_name = form.cleaned_data['first_name']
-            data.last_name = form.cleaned_data['last_name']
-            data.phone = form.cleaned_data['phone']
-            data.email = form.cleaned_data['email']
-            data.address_line_1 = form.cleaned_data['address_line_1']
-            data.address_line_2 = form.cleaned_data['address_line_2']
-            data.country = form.cleaned_data['country']
-            data.state = form.cleaned_data['state']
-            data.city = form.cleaned_data['city']
-            data.order_note = form.cleaned_data['order_note']
-            data.order_total = grand_total
-            data.tax = tax
-            data.ip = request.META.get('REMOTE_ADDR')
-            data.save()
-            # Generate order number
-            yr = int(datetime.date.today().strftime('%Y'))
-            dt = int(datetime.date.today().strftime('%d'))
-            mt = int(datetime.date.today().strftime('%m'))
-            d = datetime.date(yr,mt,dt)
-            current_date = d.strftime("%Y%m%d") #20210305
-            order_number = current_date + str(data.id)
-            data.order_number = order_number
-            data.save()
-
-            order = Order.objects.get(user=current_user, is_ordered=False, order_number=order_number)
-            context = {
-                'order': order,
-                'cart_items': cart_items,
-                'total': total,
-                'tax': tax,
-                'grand_total': grand_total,
-            }
-            return render(request, 'orders/payments.html', context)
-    else:
+    if request.method != 'POST':
         return redirect('checkout')
+
+    total, quantity, tax, grand_total = calculate_totals(cart_items)
+    totals = {
+        'cart_items': cart_items,
+        'total': total,
+        'quantity': quantity,
+        'tax': tax,
+        'grand_total': grand_total,
+    }
+
+    form = OrderForm(request.POST)
+    if not form.is_valid():
+        # Show the checkout page again with the errors and what the user typed.
+        return render(request, 'store/checkout.html', {'form': form, **totals})
+
+    # Store all the billing information inside Order table
+    order = form.save(commit=False)
+    order.user = current_user
+    order.order_total = grand_total
+    order.tax = tax
+    order.ip = request.META.get('REMOTE_ADDR')
+    order.save()
+    # Order number = today's date + the order id, e.g. 202603051
+    order.order_number = datetime.date.today().strftime('%Y%m%d') + str(order.id)
+    order.save()
+
+    return render(request, 'orders/payments.html', {'order': order, **totals})
 
 
 @login_required(login_url='login')
@@ -170,13 +150,13 @@ def order_complete(request):
 
     try:
         order = Order.objects.get(order_number=order_number, user=request.user, is_ordered=True)
-        ordered_products = OrderProduct.objects.filter(order_id=order.id)
+        ordered_products = OrderProduct.objects.filter(order_id=order.id).select_related('product')
 
         subtotal = 0
         for i in ordered_products:
             subtotal += i.product_price * i.quantity
 
-        payment = Payment.objects.get(payment_id=transID)
+        payment = Payment.objects.get(payment_id=transID, user=request.user)
 
         context = {
             'order': order,

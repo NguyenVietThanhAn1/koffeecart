@@ -15,3 +15,17 @@
 - [ ] Nếu đã chạy dưới tên project cũ, xoá container cũ (`koffeecart_web`...) trước khi `up`, vì tên project compose vừa đổi.
 - [ ] Trước khi CI push image (Phase 3), deploy bằng `./deploy.sh --build` trên VM.
 - [ ] `monitor.sh` còn dùng `docker-compose.prod.yml` không kèm `--env-file`. Kiểm tra lại khi chạy trên VM.
+
+## Từ Phase 2
+- [ ] **Backup DB trước khi deploy migration tiền (B8)**: chạy `backups/backup.sh`. Migration `store/0006` và `orders/0003` đổi `price`, `order_total`, `tax`, `product_price` sang `DecimalField(10,2)` và `amount_paid` từ chuỗi sang số. Đã thử trên SQLite với dữ liệu cũ; chưa thử trên PostgreSQL (Docker tắt).
+- [ ] Đơn COD có trạng thái thanh toán `Pending`. Sau khi giao hàng, đổi trạng thái đơn/thanh toán trong admin (`/securelogin/`). Chưa có luồng tự động.
+- [ ] Chạy `pytest -q` và `ruff check .` để tự kiểm chứng (cần `pip install -r requirements.txt -r requirements-dev.txt`).
+
+### Phát hiện thêm trong Phase 2 (ngoài plan, chưa sửa)
+- `register`: `username = email.split("@")[0]`, nên `a@x.com` và `a@y.com` trùng username, gây lỗi 500 khi đăng ký người thứ hai.
+- `submit_review`: user đăng nhập nào cũng gửi được review cho sản phẩm chưa mua (template chỉ ẩn form). `rating` không giới hạn 1–5.
+- `change_password`: đổi xong thì session bị vô hiệu (thiếu `update_session_auth_hash`), user bị đăng xuất.
+- `carts.views._cart_id`: `request.session.create()` trả `None`, nên request đầu tiên của khách mới nhận cart id rỗng (chạy được nhờ request sau).
+- `store.views.store`: lọc theo category chỉ hiện 1 sản phẩm/trang (`Paginator(products, 1)`), có vẻ là giá trị debug.
+- `register` gán ảnh mặc định `default/default-user.png` nhưng thư mục `media/default` chỉ có `default-profile.png`, nên ảnh đại diện hỏng.
+- `cart.html` không hiển thị tổng tiền và `base.html` vẫn load PayPal SDK ở mọi trang. Để Phase 5.

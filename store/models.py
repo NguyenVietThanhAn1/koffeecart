@@ -2,21 +2,37 @@ from django.db import models
 from category.models import Category
 from django.urls import reverse
 from accounts.models import Account
-from django.db.models import Avg, Count
+from django.db.models import Avg, Count, Q
 
 # Create your models here.
+
+class ProductQuerySet(models.QuerySet):
+    def with_ratings(self):
+        """Add avg_rating and review_count to every product in the same query.
+
+        List pages show the stars for many products; without this each product would
+        run its own two queries (the N+1 problem).
+        """
+        published = Q(reviewrating__status=True)
+        return self.annotate(
+            avg_rating=Avg('reviewrating__rating', filter=published),
+            review_count=Count('reviewrating', filter=published),
+        )
+
 
 class Product(models.Model):
     product_name    = models.CharField(max_length=200, unique=True)
     slug            = models.SlugField(max_length=200, unique=True)
     description     = models.TextField(max_length=500, blank=True)
-    price           = models.IntegerField()
+    price           = models.DecimalField(max_digits=10, decimal_places=2)
     images          = models.ImageField(upload_to='photos/products')
     stock           = models.IntegerField()
     is_available    = models.BooleanField(default=True)
     category        = models.ForeignKey(Category, on_delete=models.CASCADE)
     created_date    = models.DateTimeField(auto_now_add=True)
     modified_date   = models.DateTimeField(auto_now=True)
+
+    objects = ProductQuerySet.as_manager()
 
     def get_url(self):
         return reverse('product_detail', args=[self.category.slug, self.slug])
@@ -25,6 +41,9 @@ class Product(models.Model):
         return self.product_name
 
     def averageReview(self):
+        # Products loaded with Product.objects.with_ratings() already carry the value.
+        if hasattr(self, 'avg_rating'):
+            return float(self.avg_rating or 0)
         reviews = ReviewRating.objects.filter(product=self, status=True).aggregate(average=Avg('rating'))
         avg = 0
         if reviews['average'] is not None:
@@ -32,11 +51,9 @@ class Product(models.Model):
         return avg
 
     def countReview(self):
-        reviews = ReviewRating.objects.filter(product=self, status=True).aggregate(count=Count('id'))
-        count = 0
-        if reviews['count'] is not None:
-            count = int(reviews['count'])
-        return count
+        if hasattr(self, 'review_count'):
+            return self.review_count
+        return ReviewRating.objects.filter(product=self, status=True).count()
 
 class VariationManager(models.Manager):
     def colors(self):

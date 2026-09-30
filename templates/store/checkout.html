@@ -14,55 +14,63 @@
 <div class="card">
   <div class="card-body">
     <h4 class="card-title mb-4">Billing Address</h4>
+    {% if form.errors %}
+    <div class="alert alert-danger" role="alert">
+      <ul class="mb-0">
+        {% for field in form %}{% for error in field.errors %}<li>{{ field.label }}: {{ error }}</li>{% endfor %}{% endfor %}
+        {% for error in form.non_field_errors %}<li>{{ error }}</li>{% endfor %}
+      </ul>
+    </div>
+    {% endif %}
     <form action="{% url 'place_order' %}" method="POST">
       {% csrf_token %}
       <div class="form-row">
         <div class="col form-group">
           <label for="">First Name</label>
-          <input type="text" name="first_name" class="form-control" required>
+          <input type="text" name="first_name" class="form-control" value="{{ form.first_name.value|default_if_none:'' }}" required>
         </div>
         <div class="col form-group">
           <label for="">Last Name</label>
-          <input type="text" name="last_name" class="form-control" required>
+          <input type="text" name="last_name" class="form-control" value="{{ form.last_name.value|default_if_none:'' }}" required>
         </div>
       </div>
       <div class="form-row">
         <div class="col form-group">
           <label for="">Email</label>
-          <input type="email" name="email" class="form-control" required>
+          <input type="email" name="email" class="form-control" value="{{ form.email.value|default_if_none:'' }}" required>
         </div>
         <div class="col form-group">
           <label for="">Phone Number</label>
-          <input type="text" name="phone" class="form-control" required>
+          <input type="text" name="phone" class="form-control" value="{{ form.phone.value|default_if_none:'' }}" required>
         </div>
       </div>
       <div class="form-row">
         <div class="col form-group">
           <label for="">Address Line 1</label>
-          <input type="text" name="address_line_1" class="form-control" required>
+          <input type="text" name="address_line_1" class="form-control" value="{{ form.address_line_1.value|default_if_none:'' }}" required>
         </div>
         <div class="col form-group">
           <label for="">Address Line 2</label>
-          <input type="text" name="address_line_2" class="form-control">
+          <input type="text" name="address_line_2" class="form-control" value="{{ form.address_line_2.value|default_if_none:'' }}">
         </div>
       </div>
       <div class="form-row">
         <div class="col form-group">
           <label for="">City</label>
-          <input type="text" name="city" class="form-control" required>
+          <input type="text" name="city" class="form-control" value="{{ form.city.value|default_if_none:'' }}" required>
         </div>
         <div class="col form-group">
           <label for="">State</label>
-          <input type="text" name="state" class="form-control" required>
+          <input type="text" name="state" class="form-control" value="{{ form.state.value|default_if_none:'' }}" required>
         </div>
         <div class="col form-group">
           <label for="">Country</label>
-          <input type="text" name="country" class="form-control" required>
+          <input type="text" name="country" class="form-control" value="{{ form.country.value|default_if_none:'' }}" required>
         </div>
         </div>
         <div class="form-row">
           <label for="">Order Note</label>
-          <textarea name="order_note" rows="2" class="form-control"></textarea>
+          <textarea name="order_note" rows="2" class="form-control">{{ form.order_note.value|default_if_none:'' }}</textarea>
         </div>
 
 

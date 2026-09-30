@@ -101,9 +101,9 @@
                     <div class="d-flex flex-column align-items-center justify-content-center" style="gap:6px;">
                       <div class="d-flex align-items-center justify-content-center gap-2">
                         <!-- Nút giảm -->
-                        <a href="{% url 'remove_cart' cart_item.product.id cart_item.id %}"
+                        <button type="submit" form="cart-dec-{{ cart_item.id }}"
                           class="btn btn-outline-secondary btn-sm d-flex align-items-center justify-content-center"
-                          style="width:28px; height:28px; font-weight:bold; border-radius:6px;">−</a>
+                          style="width:28px; height:28px; font-weight:bold; border-radius:6px;">−</button>
 
                         <!-- Số lượng -->
                         <input type="text" value="{{ cart_item.quantity }}" readonly
@@ -111,15 +111,15 @@
                           style="width:42px; height:28px; background-color:#f8f9fa; border:1px solid #ced4da; border-radius:6px; padding:0;">
 
                         <!-- Nút tăng -->
-                        <a href="{% url 'add_cart' cart_item.product.id %}"
+                        <button type="submit" form="cart-inc-{{ cart_item.id }}"
                           class="btn btn-outline-secondary btn-sm d-flex align-items-center justify-content-center"
-                          style="width:28px; height:28px; font-weight:bold; border-radius:6px;">+</a>
+                          style="width:28px; height:28px; font-weight:bold; border-radius:6px;">+</button>
                       </div>
 
                       <!-- Remove -->
-                      <a href="{% url 'remove_cart_item' cart_item.product.id cart_item.id %}"
+                      <button type="submit" form="cart-del-{{ cart_item.id }}"
                         class="btn btn-danger btn-sm px-2 py-1 mt-1"
-                        style="font-size:0.8rem; width:70px;">Remove</a>
+                        style="font-size:0.8rem; width:70px;">Remove</button>
                     </div>
                   </td>
 
@@ -138,6 +138,22 @@
             <button type="submit" name="submit" class="btn btn-primary btn-block mt-3">Place Order</button>
             <a href="{% url 'store' %}" class="btn btn-light btn-block">Continue Shopping</a>
             </form>
+
+            {% comment %}Cart changes are POST forms (a GET link could be triggered by any other site).{% endcomment %}
+            {% for cart_item in cart_items %}
+            <form id="cart-inc-{{ cart_item.id }}" action="{% url 'add_cart' cart_item.product.id %}" method="POST" hidden>
+              {% csrf_token %}
+              {% for item in cart_item.variations.all %}
+              <input type="hidden" name="{{ item.variation_category|lower }}" value="{{ item.variation_value }}">
+              {% endfor %}
+            </form>
+            <form id="cart-dec-{{ cart_item.id }}" action="{% url 'remove_cart' cart_item.product.id cart_item.id %}" method="POST" hidden>
+              {% csrf_token %}
+            </form>
+            <form id="cart-del-{{ cart_item.id }}" action="{% url 'remove_cart_item' cart_item.product.id cart_item.id %}" method="POST" hidden>
+              {% csrf_token %}
+            </form>
+            {% endfor %}
           </div>
         </div>
       </aside>

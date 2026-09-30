@@ -1,16 +1,12 @@
 from django.shortcuts import render
-from store.models import Product, ReviewRating
+from store.models import Product
+
 
 def home(request):
-    products = Product.objects.all().filter(is_available=True).order_by('created_date')
-
-    # Get the reviews
-    reviews = None
-    for product in products:
-        reviews = ReviewRating.objects.filter(product_id=product.id, status=True)
-
-    context = {
-        'products': products,
-        'reviews': reviews,
-    }
-    return render(request, 'home.html', context)
+    products = (
+        Product.objects.filter(is_available=True)
+        .select_related('category')  # product.get_url needs the category slug
+        .with_ratings()              # stars: one query for all products, not two per product
+        .order_by('created_date')
+    )
+    return render(request, 'home.html', {'products': products})

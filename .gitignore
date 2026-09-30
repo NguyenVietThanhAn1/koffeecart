@@ -1,4 +1,3 @@
-
 # Python
 __pycache__/
 *.py[cod]
@@ -12,26 +11,30 @@ build/
 # Django
 *.log
 local_settings.py
-db.sqlite3
+*.sqlite3
 db.sqlite3-journal
 media/
 /static/
 /staticfiles/
 
-# Virtual Environment
+# Virtual environments
 venv/
 env/
 .venv/
 
-# Environment variables (NEVER commit this)
+# Environment variables and secrets (NEVER commit these)
 .env
 .env.*
 !.env.example
+*.pem
+*.key
+private_key
+id_rsa*
 
 # Vagrant
 .vagrant/
 
-# IDE
+# IDE / editor
 .vscode/
 .idea/
 *.swp
@@ -39,11 +42,22 @@ env/
 # OS
 .DS_Store
 Thumbs.db
+Desktop.ini
 
 # Deploy state and DB dumps
 .deploy_*
 backups/*.sql.gz
 
-# Tests
+# Test, coverage and lint output
 .pytest_cache/
+.ruff_cache/
 .coverage
+.coverage.*
+coverage.xml
+htmlcov/
+junit.xml
+
+# Local tool state (machine specific)
+.claude/settings.local.json
+.claude/launch.json
+graphify-out/

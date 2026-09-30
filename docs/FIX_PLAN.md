@@ -61,7 +61,7 @@ Mỗi dòng phải có một regression test (pytest-django).
 
 | # | Chỗ lỗi | Kết quả test hiện tại | Cách sửa |
 | --- | --- | --- | --- |
-| S1 | `orders.views.payments` tin trạng thái do client gửi lên | POST giả → 200, đơn thành đã thanh toán, stock 5→4 | **CHỜ AN QUYẾT ĐỊNH**: xác minh với PayPal API phía server, hoặc thay bằng mock/COD payment |
+| S1 | `orders.views.payments` tin trạng thái do client gửi lên | POST giả → 200, đơn thành đã thanh toán, stock 5→4 | **An đã chọn mock/COD**: server tự quyết định số tiền, phương thức, trạng thái (`Pending`) và mã giao dịch; client chỉ gửi số đơn |
 | S2 | `accounts.views.order_detail` không lọc theo user | User B đọc được đơn của A (200) | `get_object_or_404(Order, order_number=..., user=request.user)` |
 | S3 | Login lấy `next` từ Referer rồi redirect thẳng | `next=https://evil.com` → 302 tới evil.com | `url_has_allowed_host_and_scheme()` |
 | S4 | `place_order`, `payments`, `order_complete`, `submit_review` thiếu `@login_required` | Anonymous vào place_order → 500 | Thêm decorator; `@require_POST` cho view thay đổi dữ liệu |
