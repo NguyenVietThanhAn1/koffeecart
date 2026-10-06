@@ -204,3 +204,38 @@ def test_cart_count_sums_quantities(client, product):
     _anon_add(client, product)
     assert client.get(reverse('cart')).context['cart_count'] == 2
     assert Cart.objects.count() == 1
+
+
+# ---- variations: same variation bumps the line, another variation makes a new line ----
+def _lines(**filters):
+    return {
+        tuple(sorted(v.variation_value for v in item.variations.all())): item.quantity
+        for item in CartItem.objects.filter(**filters)
+    }
+
+
+def test_guest_variations_split_and_merge_lines(client, product):
+    for value in ('red', 'blue'):
+        Variation.objects.create(product=product, variation_category='color', variation_value=value)
+    _anon_add(client, product, color='red')
+    _anon_add(client, product, color='red')
+    _anon_add(client, product, color='blue')
+    _anon_add(client, product)  # no variation: yet another line
+    assert _lines() == {('red',): 2, ('blue',): 1, (): 1}
+
+
+def test_logged_in_variations_split_and_merge_lines(client, user_a, product):
+    for value in ('red', 'blue'):
+        Variation.objects.create(product=product, variation_category='color', variation_value=value)
+    client.force_login(user_a)
+    for color in ('red', 'red', 'blue'):
+        client.post(reverse('add_cart', args=[product.id]), {'color': color})
+    assert _lines(user=user_a) == {('red',): 2, ('blue',): 1}
+
+
+def test_logged_in_remove_cart_decrements(client, user_a, product):
+    item = CartItem.objects.create(user=user_a, product=product, quantity=2)
+    client.force_login(user_a)
+    client.post(reverse('remove_cart', args=[product.id, item.id]))
+    item.refresh_from_db()
+    assert item.quantity == 1

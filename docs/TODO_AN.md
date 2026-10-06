@@ -29,3 +29,12 @@
 - `store.views.store`: lọc theo category chỉ hiện 1 sản phẩm/trang (`Paginator(products, 1)`), có vẻ là giá trị debug.
 - `register` gán ảnh mặc định `default/default-user.png` nhưng thư mục `media/default` chỉ có `default-profile.png`, nên ảnh đại diện hỏng.
 - `cart.html` không hiển thị tổng tiền và `base.html` vẫn load PayPal SDK ở mọi trang. Để Phase 5.
+
+## Từ Phase 3 (CI/CD)
+Chi tiết từng bước ở [docs/CI_CD.md](CI_CD.md).
+- [ ] GitHub → Settings → Secrets → Actions: thêm `DOCKERHUB_USERNAME` và `DOCKERHUB_TOKEN` (access token, không dùng mật khẩu). Tên image giờ tự lấy từ `DOCKERHUB_USERNAME`, không còn hardcode `annguyn0810`.
+- [ ] Thêm repository variable `DEPLOY_DIR` (đường dẫn thư mục clone trên VM, có `.env.prod`) và environment `production` (nên bật required reviewers).
+- [ ] Cài self-hosted runner trên VM với label `koffeecart`. Runner user phải chạy được `docker`. Nếu repo Docker Hub private thì `docker login` một lần trên VM.
+- [ ] Bật branch protection cho `main`: bắt buộc các check `lint`, `test`, `security`, `build`.
+- [ ] Lần chạy CI đầu tiên có thể đỏ ở `pip-audit`/Trivy nếu còn phụ thuộc cũ. Phase 4 đã nâng phụ thuộc lên bản vá.
+

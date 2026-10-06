@@ -35,6 +35,15 @@ SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 SESSION_COOKIE_SECURE = config('SESSION_COOKIE_SECURE', default=False, cast=bool)
 CSRF_COOKIE_SECURE = config('CSRF_COOKIE_SECURE', default=False, cast=bool)
 
+# HTTPS hardening. All off by default so the plain-HTTP dev/VM setup keeps working;
+# turn them on once the site is served over TLS (see docs/CI_CD.md).
+SECURE_SSL_REDIRECT = config('SECURE_SSL_REDIRECT', default=False, cast=bool)
+SECURE_HSTS_SECONDS = config('SECURE_HSTS_SECONDS', default=0, cast=int)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = config('SECURE_HSTS_INCLUDE_SUBDOMAINS', default=False, cast=bool)
+SECURE_HSTS_PRELOAD = config('SECURE_HSTS_PRELOAD', default=False, cast=bool)
+# The container healthcheck calls /health/ over plain HTTP, so it must not be redirected.
+SECURE_REDIRECT_EXEMPT = [r'^health/$']
+
 # Application definition
 
 INSTALLED_APPS = [
@@ -168,10 +177,8 @@ EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
 
-if not DEBUG:
-    SECURE_BROWSER_XSS_FILTER = True
-    SECURE_CONTENT_TYPE_NOSNIFF = True
-    X_FRAME_OPTIONS = 'DENY'
+# Django already defaults to SECURE_CONTENT_TYPE_NOSNIFF = True and X_FRAME_OPTIONS = 'DENY'
+# (SECURE_BROWSER_XSS_FILTER was removed in Django 4.0), so nothing to set here.
 
 # Log to stdout only; Docker collects it (docker compose logs).
 LOGGING = {

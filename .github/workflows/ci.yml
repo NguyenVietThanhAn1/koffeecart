@@ -1,140 +1,233 @@
 name: Koffeecart CI/CD
 
+# lint -> test -> security -> build (scan + smoke test + push) -> deploy
+# What each job needs from GitHub settings is documented in docs/CI_CD.md.
+
 on:
   push:
-    branches: [ "main" ]
-  pull_request: 
-    branches: [ "main" ]
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# A newer push to the same PR cancels the older run; runs on main are never cancelled.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  IMAGE_NAME: annguyn0810/koffeecart
+  PYTHON_VERSION: "3.11"
+  # The Docker Hub repository comes from the same secret that is used to log in,
+  # so the image name and the login can never disagree. Forks have no secret -> "local".
+  IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME || 'local' }}/koffeecart
 
 jobs:
   lint:
-    name: Lint & Syntax Check
+    name: Lint and Django checks
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-    steps: 
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: '3.11'
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
 
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+        run: pip install -r requirements.txt -r requirements-dev.txt
 
-      - name: Check Django configuration
+      - name: ruff
+        run: ruff check .
+
+      # Validates that the settings can express a fully hardened HTTPS deployment
+      # (this is a config check; no secret is real).
+      - name: Django deploy check (fails on any warning)
         env:
-          SECRET_KEY: "ci-test-secret-key-not-real"
-          DEBUG: "True"
-          ALLOWED_HOSTS: "localhost"
-          DB_ENGINE: "django.db.backends.sqlite3"
-          DB_NAME: ":memory:"
-          DB_USER: ""
-          DB_PASSWORD: ""
-          DB_HOST: ""
-          DB_PORT: ""
-        run: |
-          python manage.py check
+          SECRET_KEY: ci-only-not-a-real-key-Zx9qL2mVb7TnQe4RwYp1Ks8DfHj3UcAo5GiXtN6BvMlEy
+          DEBUG: "False"
+          ALLOWED_HOSTS: localhost
+          SECURE_SSL_REDIRECT: "True"
+          SESSION_COOKIE_SECURE: "True"
+          CSRF_COOKIE_SECURE: "True"
+          SECURE_HSTS_SECONDS: "31536000"
+          SECURE_HSTS_INCLUDE_SUBDOMAINS: "True"
+          SECURE_HSTS_PRELOAD: "True"
+        run: python manage.py check --deploy --fail-level WARNING
 
-      - name: Check for missing migrations
+      - name: Migrations are in sync with the models
         env:
-          SECRET_KEY: "ci-test-secret-key-not-real"
-          DEBUG: "True"
-          ALLOWED_HOSTS: "localhost"
-          DB_ENGINE: "django.db.backends.sqlite3"
-          DB_NAME: "/tmp/test.db"
-          DB_USER: ""
-          DB_PASSWORD: ""
-          DB_HOST: "" 
-          DB_PORT: ""
-        run: |
-          python manage.py migrate --run-syncdb
-          python manage.py makemigrations --check --dry-run
+          SECRET_KEY: ci-test-secret-key-not-real
+        run: python manage.py makemigrations --check --dry-run
 
-  build:
-    name: Build Docker Image
+  test:
+    name: Tests on PostgreSQL 17
     runs-on: ubuntu-latest
     needs: lint
-
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: koffeecart_test
+          POSTGRES_USER: koffeecart
+          POSTGRES_PASSWORD: ci-only-password # throwaway: the container lives only for this job
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U koffeecart -d koffeecart_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      SECRET_KEY: ci-test-secret-key-not-real
+      DB_ENGINE: django.db.backends.postgresql
+      DB_NAME: koffeecart_test
+      DB_USER: koffeecart
+      DB_PASSWORD: ci-only-password
+      DB_HOST: localhost
+      DB_PORT: "5432"
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Build Docker image
-        run: |
-          docker build \
-            --tag ${{ env.IMAGE_NAME }}:${{ github.sha }} \
-            --tag ${{ env.IMAGE_NAME }}:latest \
-            --file Dockerfile \
-            .
-      - name: Verify image was built
-        run: |
-          docker images | grep ${{ env.IMAGE_NAME }}
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
 
-      - name: Smoke test the image
-        run: |
-          docker run --rm -d \
-            --name koffeecart_ci_test \
-            -e SECRET_KEY="ci-smoke-test-key" \
-            -e DEBUG="True" \
-            -e ALLOWED_HOSTS="localhost" \
-            -e DB_ENGINE="django.db.backends.sqlite3" \
-            -e DB_NAME="/tmp/ci_test.db" \
-            -e DB_USER="" \
-            -e DB_PASSWORD="" \
-            -e DB_HOST="" \
-            -e DB_PORT="" \
-            -p 8000:8000 \
-            ${{ env.IMAGE_NAME }}:latest
-          
-          sleep 5
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
 
-          docker exec koffeecart_ci_test python manage.py migrate
+      - name: pytest with coverage
+        run: pytest -ra --cov --cov-report=term-missing:skip-covered --cov-report=xml --cov-fail-under=90
 
-          sleep 10
-          
-          docker ps | grep koffeecart_ci_test
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: coverage-xml
+          path: coverage.xml
+          if-no-files-found: ignore
 
-          curl --fail --retry 3 --retry-delay 3 http://localhost:8000 || \
-          (docker logs koffeecart_ci_test && exit 1)
-          docker stop koffeecart_ci_test
-
-  push:
-    name: Push to Docker Hub
+  security:
+    name: Dependency and source scan
     runs-on: ubuntu-latest
-    needs: build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-    steps: 
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: pip-audit (known vulnerabilities in the pinned dependencies)
+        run: |
+          pip install pip-audit
+          pip-audit -r requirements.txt
+
+      - name: Trivy source scan (a CRITICAL finding fails the build)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,secret,misconfig
+          severity: CRITICAL
+          exit-code: "1"
+          ignore-unfixed: true
+
+  build:
+    name: Build, scan, smoke-test and push the image
+    runs-on: ubuntu-latest
+    needs: [test, security]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      # The image is built exactly once. Every later step (scan, smoke test, push) uses
+      # this same image; layers are cached in the GitHub Actions cache between runs.
+      - name: Build image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          load: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
+            ${{ env.IMAGE_NAME }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Trivy image scan (a CRITICAL finding fails the build)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
+          severity: CRITICAL
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: os,library
+
+      # Starts the real production stack (db, migrate, web, nginx) with the image built above.
+      # `--wait` blocks until every service is healthy, so there is no sleep and no guessing.
+      - name: Smoke test the full stack
+        env:
+          WEB_IMAGE: ${{ env.IMAGE_NAME }}
+          IMAGE_TAG: sha-${{ github.sha }}
+        run: |
+          cat > .env.prod <<'EOF'
+          SECRET_KEY=ci-smoke-test-key-not-a-secret
+          DEBUG=False
+          ALLOWED_HOSTS=localhost,127.0.0.1
+          CSRF_TRUSTED_ORIGINS=http://localhost
+          DB_ENGINE=django.db.backends.postgresql
+          DB_NAME=koffeecart
+          DB_USER=koffeecart
+          DB_PASSWORD=ci-smoke-test-password
+          DB_PORT=5432
+          EOF
+          COMPOSE="docker compose --env-file .env.prod -f docker-compose.prod.yml"
+          trap '$COMPOSE logs --no-color --tail=100; $COMPOSE down -v' EXIT
+          $COMPOSE up -d --no-build --wait --wait-timeout 180
+          curl -fsS http://localhost/health/
+          curl -fsSI http://localhost/static/css/ui.css   # static files must come from nginx
+          curl -fsS http://localhost/ | grep -qi koffeecart
 
       - name: Log in to Docker Hub
-        uses: docker/login-action@v3
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/koffeecart:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/koffeecart:${{ github.sha }}
+      - name: Push the tested image (tags sha-<commit> and latest)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: docker push --all-tags "${IMAGE_NAME}"
 
-      - name: Image digest
-        run: echo "Image pushed successfully"
-
+  deploy:
+    name: Deploy to the VM
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # A self-hosted runner installed on the VM (GitHub-hosted runners cannot reach it).
+    runs-on: [self-hosted, koffeecart]
+    environment: production
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    steps:
+      # deploy.sh pulls the image, replaces the containers, waits for /health/, and rolls
+      # back to the previous tag by itself if the new version does not become healthy.
+      - name: Deploy the tested image
+        env:
+          DEPLOY_DIR: ${{ vars.DEPLOY_DIR }}
+          WEB_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/koffeecart
+          COMMIT: ${{ github.sha }}
+        run: |
+          : "${DEPLOY_DIR:?Set the DEPLOY_DIR repository variable to the clone path on the VM}"
+          cd "$DEPLOY_DIR"
+          git fetch --prune origin
+          git checkout --force --detach "$COMMIT"   # compose file, nginx.conf and scripts of this commit
+          export WEB_IMAGE
+          ./deploy.sh "sha-$COMMIT"

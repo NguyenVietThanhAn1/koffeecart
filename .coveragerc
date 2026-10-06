@@ -1,0 +1,21 @@
+[run]
+source = .
+branch = False
+omit =
+    */migrations/*
+    */tests.py
+    */test_*.py
+    conftest.py
+    manage.py
+    koffeecart/wsgi.py
+    koffeecart/asgi.py
+    venv/*
+    .venv/*
+    staticfiles/*
+
+[report]
+show_missing = True
+skip_covered = True
+exclude_lines =
+    pragma: no cover
+    if __name__ == .__main__.:
