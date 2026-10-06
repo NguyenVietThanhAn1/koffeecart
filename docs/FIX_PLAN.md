@@ -2,6 +2,8 @@
 
 Audit ngày 2026-09-30 trên commit `9ba572c` (main). Nguồn gốc: doc "KoffeeCart — Audit & kế hoạch sửa" trên claude.ai.
 
+> **Trạng thái 2026-10-04:** Phase 0–2 đã commit, Phase 3 xong nhưng chưa commit. Từ Phase 4 trở đi làm theo [UPGRADE_PLAN.md](UPGRADE_PLAN.md) (audit lại, thêm Phase 4B bug còn sót và Phase 7 tuỳ chọn).
+
 ## Tóm tắt
 
 App chạy được ở mức demo. Tuy vậy vẫn còn 1 secret đang lộ công khai, 3 lỗ hổng bảo mật đã tái hiện được, và stack Docker hiện tại phục vụ static sai. Sửa theo thứ tự Phase 0 → 3 trước khi redeploy. UI để sau cùng.
