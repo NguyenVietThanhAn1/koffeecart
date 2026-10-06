@@ -4,7 +4,7 @@ name: koffeecart
 
 services:
   db:
-    image: postgres:15-alpine
+    image: postgres:17-alpine
     container_name: koffeecart_db
     restart: always
     volumes:
@@ -73,7 +73,7 @@ services:
         max-file: "5"
 
   nginx:
-    image: nginx:1.25-alpine
+    image: nginx:1.30-alpine
     container_name: koffeecart_nginx
     restart: always
     ports:

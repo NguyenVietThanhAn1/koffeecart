@@ -1,12 +1,14 @@
 # ---- Stage 1: build the virtualenv ----
-FROM python:3.11-slim AS builder
+FROM python:3.14-slim AS builder
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# requirements.txt is a lock file with a sha256 per package: pip refuses anything that
+# does not match, so a tampered or swapped package cannot get into the image.
+RUN pip install --no-cache-dir --require-hashes -r requirements.txt
 
 # ---- Stage 2: runtime (no compilers, no root) ----
-FROM python:3.11-slim
+FROM python:3.14-slim
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PATH="/opt/venv/bin:$PATH"

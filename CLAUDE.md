@@ -27,7 +27,7 @@ export SECRET_KEY=dev DEBUG=True ALLOWED_HOSTS=localhost,127.0.0.1
 python manage.py migrate && python manage.py runserver
 
 # test và lint
-pip install -r requirements.txt -r requirements-dev.txt
+pip install --require-hashes -r requirements.txt -r requirements-dev.txt
 pytest -q
 ruff check .
 

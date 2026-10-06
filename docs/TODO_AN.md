@@ -38,3 +38,8 @@ Chi tiết từng bước ở [docs/CI_CD.md](CI_CD.md).
 - [ ] Bật branch protection cho `main`: bắt buộc các check `lint`, `test`, `security`, `build`.
 - [ ] Lần chạy CI đầu tiên có thể đỏ ở `pip-audit`/Trivy nếu còn phụ thuộc cũ. Phase 4 đã nâng phụ thuộc lên bản vá.
 
+## Từ Phase 4
+- [ ] PostgreSQL đổi từ 15 sang 17. Volume cũ của Postgres 15 không mở được bằng 17. VM không có dữ liệu cần giữ, nên trước lần deploy đầu tiên chạy: `docker compose --env-file .env.prod -f docker-compose.prod.yml down -v` (xoá cả volume), rồi `up` lại.
+- [ ] Máy local cần Python 3.14 (`uv python install 3.14`) và cài phụ thuộc bằng `pip install --require-hashes -r requirements.txt -r requirements-dev.txt`.
+- [ ] Docker build, test trên PostgreSQL và smoke test chưa chạy được ở local (tắt ảo hoá). Kiểm chứng bằng CI trên PR.
+

@@ -67,12 +67,29 @@ preload is very hard to undo. The CI check turns everything on only to prove the
 ## Run the same checks locally
 
 ```bash
-pip install -r requirements.txt -r requirements-dev.txt
+pip install --require-hashes -r requirements.txt -r requirements-dev.txt
 ruff check .
 SECRET_KEY=dev python manage.py makemigrations --check --dry-run
 pytest --cov                      # SQLite; the concurrency tests are skipped here
-pip-audit -r requirements.txt
+pip-audit -r requirements.txt --require-hashes --disable-pip
 ```
 
 To run the tests on PostgreSQL like CI does, start a database and export `DB_ENGINE`, `DB_NAME`,
 `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT` (see `.env.example`) before running `pytest`.
+
+## Updating dependencies
+
+`requirements.in` and `requirements-dev.in` list what the project uses directly. `requirements.txt`
+and `requirements-dev.txt` are **generated lock files**: every package, including indirect ones, is
+pinned to one version with its sha256 hashes. Never edit them by hand.
+
+```bash
+# after changing a .in file, or to pick up new releases:
+uv pip compile requirements.in --universal --python-version 3.14 --generate-hashes -o requirements.txt
+uv pip compile requirements-dev.in --universal --python-version 3.14 --generate-hashes -o requirements-dev.txt
+```
+
+`--universal` makes one file that works on Windows (local) and Linux (CI, Docker). Because the file
+has hashes, `pip install` refuses any download that does not match, so a tampered package cannot get in.
+Dependabot (`.github/dependabot.yml`) opens weekly PRs for Python packages, base images and actions.
+Django is held on the 5.2 LTS line; a major PostgreSQL upgrade is done by hand (dump/restore).

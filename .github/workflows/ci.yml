@@ -18,7 +18,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  PYTHON_VERSION: "3.11"
+  PYTHON_VERSION: "3.14"
   # The Docker Hub repository comes from the same secret that is used to log in,
   # so the image name and the login can never disagree. Forks have no secret -> "local".
   IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME || 'local' }}/koffeecart
@@ -39,7 +39,7 @@ jobs:
             requirements-dev.txt
 
       - name: Install dependencies
-        run: pip install -r requirements.txt -r requirements-dev.txt
+        run: pip install --require-hashes -r requirements.txt -r requirements-dev.txt
 
       - name: ruff
         run: ruff check .
@@ -102,7 +102,7 @@ jobs:
             requirements-dev.txt
 
       - name: Install dependencies
-        run: pip install -r requirements.txt -r requirements-dev.txt
+        run: pip install --require-hashes -r requirements.txt -r requirements-dev.txt
 
       - name: pytest with coverage
         run: pytest -ra --cov --cov-report=term-missing:skip-covered --cov-report=xml --cov-fail-under=90
@@ -126,8 +126,10 @@ jobs:
 
       - name: pip-audit (known vulnerabilities in the pinned dependencies)
         run: |
-          pip install pip-audit
-          pip-audit -r requirements.txt
+          pip install --require-hashes -r requirements-dev.txt
+          # The lock file pins every package (with hashes), so pip-audit can check it as-is
+          # without resolving or installing anything.
+          pip-audit -r requirements.txt --require-hashes --disable-pip
 
       - name: Trivy source scan (a CRITICAL finding fails the build)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0

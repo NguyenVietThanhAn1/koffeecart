@@ -1,0 +1,9 @@
+# Test and lint tools (CI and local only, never in the image). Regenerate with:
+#   uv pip compile requirements-dev.in --universal --python-version 3.14 --generate-hashes -o requirements-dev.txt
+-c requirements.txt          # same versions as production for shared packages
+pytest
+pytest-django
+pytest-env
+pytest-cov
+ruff
+pip-audit

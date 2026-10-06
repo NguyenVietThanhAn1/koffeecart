@@ -1,0 +1,8 @@
+# Direct runtime dependencies. Edit THIS file, then regenerate the lock file:
+#   uv pip compile requirements.in --universal --python-version 3.14 --generate-hashes -o requirements.txt
+django>=5.2.17,<5.3          # stay on the 5.2 LTS line (security fixes until 04/2028)
+pillow>=12.3                 # ImageField
+psycopg[binary]>=3.3         # PostgreSQL driver; Django picks psycopg 3 automatically
+gunicorn>=26                 # WSGI server in the container
+python-decouple>=3.8         # settings from environment / .env
+django-admin-thumbnails      # product thumbnails in the admin

@@ -22,3 +22,14 @@ Vagrantfile
 docker-compose*.yml
 nginx/
 *.sh
+# Tests and dev tooling stay out of the production image
+**/tests.py
+**/test_*.py
+conftest.py
+pytest.ini
+.coveragerc
+ruff.toml
+requirements-dev.*
+requirements*.in
+.pytest_cache/
+.ruff_cache/

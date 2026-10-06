@@ -1,7 +1,7 @@
 # Lint config. Run: ruff check .
 # Kept small on purpose: real bugs (unused/undefined names, bare except, print left in code),
 # not style opinions.
-target-version = "py311"
+target-version = "py314"
 extend-exclude = ["*/migrations/*"]
 
 [lint]

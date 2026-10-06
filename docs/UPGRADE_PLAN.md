@@ -3,6 +3,16 @@
 Audit ngày 2026-10-04 trên commit `edd5171` (main) cộng với phần Phase 3 đang nằm trong working tree, chưa commit.
 File này nối tiếp [FIX_PLAN.md](FIX_PLAN.md): giữ nguyên thứ tự Phase 4 → 6, bổ sung Phase 4B (bug còn sót) và Phase 7 (DevOps nâng cao, tuỳ chọn).
 
+## 0. Tiến độ
+
+| Phase | Trạng thái |
+| --- | --- |
+| 3.9 | Xong: commit `982b007` trên nhánh `upgrade/phase-3-7` |
+| 4 | Xong (xem commit "Phase 4") |
+| 4B, 5, 6, 7 | Đang làm theo thứ tự |
+
+Quyết định An đã chốt ngày 2026-10-06: **Python 3.14** (D1), **`uv pip compile`** (D2), VM **không có dữ liệu cần giữ** (D3, chỉ cần `down -v` rồi `up`), **không có domain** (D4), Phase 7 để Claude chọn (D5), An sẽ tự thu hồi Gmail app password (D6). Máy An tắt ảo hoá nên không chạy Docker local: Postgres, build image và smoke test chỉ kiểm chứng được trên CI.
+
 ## 1. Hiện trạng
 
 ### Đã xong
@@ -85,7 +95,7 @@ Giữ nguyên các quyết định đã có: Django 5.2 LTS (hỗ trợ bảo m�
 
 | # | Câu hỏi | Khuyến nghị | Lý do |
 | --- | --- | --- | --- |
-| D1 | Python 3.13 hay 3.14? | **3.13** | Đúng FIX_PLAN, mọi wheel đều có, local đang là 3.13. 3.14 không mang lại gì cho app này |
+| D1 | Python 3.13 hay 3.14? | ~~3.13~~ → **An chọn 3.14** | Mọi package trong lockfile đều có wheel cho 3.14, đã chạy đủ test |
 | D2 | Khoá phiên bản bằng `pip-tools` hay `uv`? | **`uv pip compile`** | Ra file `requirements.txt` cùng định dạng (Dockerfile, CI không phải đổi), có `--generate-hashes`, nhanh. `uv` cũng là công cụ hay gặp khi phỏng vấn |
 | D3 | VM có dữ liệu Postgres 15 cần giữ không? | — | Có: dump/restore theo runbook ở Phase 4. Không: xoá volume, tạo lại |
 | D4 | Có domain để bật HTTPS không? | — | Không có domain thì bỏ mục 7.1 |
@@ -126,16 +136,16 @@ Giữ nguyên các quyết định đã có: Django 5.2 LTS (hỗ trợ bảo m�
 | django-admin-thumbnails | 0.2.9 | giữ | chỉ dùng trong admin |
 | python-decouple | 3.8 | giữ | đã là bản mới nhất |
 
-- [ ] Tạo `requirements.in` (tên package + ràng buộc như `django>=5.2,<5.3`) và `requirements-dev.in`. Sinh `requirements.txt` có hash bằng `uv pip compile` (theo D2). Dockerfile cài bằng `pip install --require-hashes`.
-- [ ] `requirements-dev.txt` hiện không ghim phiên bản (`pytest`, `ruff`...). Ghim luôn, để CI hôm nay và CI tháng sau chạy cùng một ruff.
+- [x] Tạo `requirements.in` (tên package + ràng buộc như `django>=5.2,<5.3`) và `requirements-dev.in`. Sinh `requirements.txt` có hash bằng `uv pip compile` (theo D2). Dockerfile cài bằng `pip install --require-hashes`.
+- [x] `requirements-dev.txt` hiện không ghim phiên bản (`pytest`, `ruff`...). Ghim luôn, để CI hôm nay và CI tháng sau chạy cùng một ruff.
 
 **4.2 Đồng bộ runtime**
 
-- [ ] `Dockerfile`: `python:3.11-slim` → `python:3.13-slim` (ghim theo digest nếu muốn Trivy ổn định).
-- [ ] `ci.yml`: `PYTHON_VERSION: "3.13"`. `ruff.toml`: `target-version = "py313"`.
-- [ ] `docker-compose.yml` và `docker-compose.prod.yml`: `postgres:15-alpine` → `postgres:17-alpine`, trùng với service test của CI.
-- [ ] `docker-compose.prod.yml`: `nginx:1.25-alpine` → bản stable hiện hành (kiểm tra trên Docker Hub khi làm, ghim số cụ thể, không dùng `latest`).
-- [ ] `.dockerignore`: thêm `**/tests.py`, `**/test_*.py`, `conftest.py`, `pytest.ini`, `.coveragerc`, để image production không chứa test.
+- [x] `Dockerfile`: `python:3.11-slim` → `python:3.14-slim`.
+- [x] `ci.yml`: `PYTHON_VERSION: "3.14"`. `ruff.toml`: `target-version = "py314"`.
+- [x] `docker-compose.yml` và `docker-compose.prod.yml`: `postgres:15-alpine` → `postgres:17-alpine`, trùng với service test của CI.
+- [x] `docker-compose.prod.yml`: `nginx:1.25-alpine` → `nginx:1.30-alpine` (stable hiện hành).
+- [x] `.dockerignore`: thêm `**/tests.py`, `**/test_*.py`, `conftest.py`, `pytest.ini`, `.coveragerc`, để image production không chứa test.
 
 **4.3 Runbook nâng PostgreSQL 15 → 17 trên VM** (chỉ khi D3 = có dữ liệu)
 
@@ -151,16 +161,16 @@ Volume dữ liệu của Postgres 15 không mở được bằng Postgres 17, n�
 
 **4.4 Tự động cập nhật**
 
-- [ ] Thêm `.github/dependabot.yml` cho 3 hệ: `pip`, `docker` (base image), `github-actions`. Lịch hàng tuần, gom nhóm patch để không bị spam PR.
+- [x] Thêm `.github/dependabot.yml` cho 3 hệ: `pip`, `docker` (base image), `github-actions`. Lịch hàng tuần, gom nhóm patch để không bị spam PR.
 
 Kiểm chứng Phase 4:
 
 ```bash
-pip install -r requirements.txt -r requirements-dev.txt
+pip install --require-hashes -r requirements.txt -r requirements-dev.txt
 pytest -q
-pip-audit -r requirements.txt          # phải ra "No known vulnerabilities found"
+pip-audit -r requirements.txt --require-hashes --disable-pip   # "No known vulnerabilities found"
 docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build --wait
-docker exec koffeecart_web python --version   # 3.13.x
+docker exec koffeecart_web python --version   # 3.14.x
 docker exec koffeecart_db postgres --version  # 17.x
 ```
 
