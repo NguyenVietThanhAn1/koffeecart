@@ -1,2 +1,5 @@
 * text=auto
 *.sh text eol=lf
+
+# Third-party files: hide from diffs and language stats
+koffeecart/static/vendor/** -diff linguist-vendored

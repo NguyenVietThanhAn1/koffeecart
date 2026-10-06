@@ -5,7 +5,7 @@
 - [ ] Backup `db.sqlite3` cũ nếu còn dữ liệu cần giữ. File đã ra khỏi git nhưng vẫn nằm trên đĩa.
 - [ ] Tạo `.env` thật từ `.env.example`: `SECRET_KEY`, DB, email. Không commit file này.
 - [ ] Chọn hướng cho lỗi S1 (thanh toán): xác minh PayPal phía server, hay mock/COD. Cần trước Phase 2.
-- [ ] Ảnh sản phẩm trong `media/` đã ra khỏi git. Quyết định cách giữ ảnh (volume, seed lại, hoặc object storage).
+- [x] Ảnh sản phẩm trong `media/` đã ra khỏi git. Phase 6: `python manage.py seed_demo` tạo sản phẩm mẫu và tự vẽ ảnh, nên server mới không cần chép ảnh. Ảnh thật upload qua admin nằm trong volume `media_volume`.
 - [ ] (Tuỳ chọn) Chạy `git add --renormalize .` để chuẩn hoá CRLF cũ, khi muốn.
 
 ## Từ Phase 1
@@ -44,3 +44,7 @@ Chi tiết từng bước ở [docs/CI_CD.md](CI_CD.md).
 - [ ] Máy local cần Python 3.14 (`uv python install 3.14`) và cài phụ thuộc bằng `pip install --require-hashes -r requirements.txt -r requirements-dev.txt`.
 - [ ] Docker build, test trên PostgreSQL và smoke test chưa chạy được ở local (tắt ảo hoá). Kiểm chứng bằng CI trên PR.
 
+
+## Từ Phase 6
+- [ ] `db.sqlite3` local đã được migrate lên schema mới và nạp dữ liệu mẫu (giữ nguyên 6 sản phẩm, 5 đơn cũ). Bản gốc trước khi nâng cấp: `db-backup-2026-10-06-before-upgrade.sqlite3` (git bỏ qua). Xoá khi không cần nữa.
+- [ ] Sau lần deploy đầu lên Linux: `docker compose --env-file .env.prod -f docker-compose.prod.yml exec web python manage.py seed_demo` rồi `... exec web python manage.py createsuperuser`.
