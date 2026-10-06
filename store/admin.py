@@ -8,7 +8,12 @@ class ProductGalleryInline(admin.TabularInline):
     extra = 1
 
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ('product_name', 'price', 'stock', 'category', 'modified_date', 'is_available')
+    list_display = ('product_name', 'category', 'price', 'compare_at_price', 'stock', 'is_available', 'modified_date')
+    # Day-to-day shop work (prices, sales, restocking, hiding a product) right from the list.
+    list_editable = ('price', 'compare_at_price', 'stock', 'is_available')
+    list_filter = ('category', 'is_available')
+    search_fields = ('product_name', 'description')
+    list_select_related = ('category',)
     prepopulated_fields = {'slug': ('product_name',)}
     inlines = [ProductGalleryInline]
 

@@ -46,13 +46,13 @@ def store(request, category_slug=None):
 def search(request):
     values = ProductFilterForm(request.GET).values()
     keyword = values.get('keyword', '')
-    products = Product.objects.filter(is_available=True)
-    if keyword:
-        products = products.filter(Q(description__icontains=keyword) | Q(product_name__icontains=keyword))
-    else:
-        products = products.none()  # an empty search shows nothing, not the whole shop
     # The header search box can narrow the search to one category.
     category = Category.objects.filter(slug=values['category']).first() if 'category' in values else None
+    if not keyword:
+        # Nothing typed: show the chosen department, or the whole store (like Amazon).
+        return redirect(category.get_url() if category else 'store')
+    products = Product.objects.filter(is_available=True).filter(
+        Q(description__icontains=keyword) | Q(product_name__icontains=keyword))
     if category is not None:
         products = products.filter(category=category)
     return _listing(request, products, category=category, keyword=keyword)

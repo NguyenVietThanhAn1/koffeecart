@@ -133,9 +133,47 @@ def test_search_within_a_category(client, make_product):
     assert bean.pk not in [p.pk for p in resp.context['products']]
 
 
-def test_empty_search_finds_nothing(client, make_product):
+def test_empty_search_goes_to_the_store(client, make_product):
     make_product()
-    assert client.get(reverse('search'), {'keyword': ''}).context['product_count'] == 0
+    resp = client.get(reverse('search'), {'keyword': ''})
+    assert resp.status_code == 302 and resp['Location'] == reverse('store')
+
+
+def test_empty_search_in_a_category_goes_to_that_category(client, make_product):
+    p = make_product()
+    resp = client.get(reverse('search'), {'keyword': '', 'category': p.category.slug})
+    assert resp['Location'] == p.category.get_url()
+
+
+def test_checkout_prefills_the_saved_address(client, user_a, product):
+    from accounts.models import UserProfile
+    UserProfile.objects.create(user=user_a, address_line_1='12 Bean Lane', city='Da Lat',
+                               state='Lam Dong', country='Vietnam')
+    CartItem.objects.create(user=user_a, product=product, quantity=1)
+    client.force_login(user_a)
+    html = client.get(reverse('checkout')).content.decode()
+    for value in ('12 Bean Lane', 'Da Lat', 'Lam Dong', 'Vietnam'):
+        assert f'value="{value}"' in html
+
+
+def test_admin_edits_price_and_stock_from_the_product_list(client, product):
+    admin = Account.objects.create_superuser(first_name='A', last_name='D', email='ad@example.com',
+                                             username='ad', password=STRONG)
+    client.force_login(admin)
+    data = {
+        'form-TOTAL_FORMS': '1', 'form-INITIAL_FORMS': '1', 'form-MIN_NUM_FORMS': '0',
+        'form-MAX_NUM_FORMS': '1000', 'form-0-id': str(product.pk), 'form-0-price': '90.00',
+        'form-0-compare_at_price': '100.00', 'form-0-stock': '7', 'form-0-is_available': 'on',
+        '_save': 'Save',
+    }
+    assert client.post(reverse('admin:store_product_changelist'), data).status_code == 302
+    product.refresh_from_db()
+    assert (product.price, product.compare_at_price, product.stock) == (Decimal('90.00'), Decimal('100.00'), 7)
+    # a "was" price below the price is refused by the form (and by the database)
+    data['form-0-compare_at_price'] = '50.00'
+    assert client.post(reverse('admin:store_product_changelist'), data).status_code == 200
+    product.refresh_from_db()
+    assert product.compare_at_price == Decimal('100.00')
 
 
 # ---- add to cart: quantity and buy now ----

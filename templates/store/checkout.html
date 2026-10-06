@@ -24,11 +24,11 @@
               {% include 'includes/input.html' with name='last_name' label='Last name' value=form.last_name.value errors=form.last_name.errors fallback=user.last_name required=True %}
               {% include 'includes/input.html' with name='email' label='Email' type='email' value=form.email.value errors=form.email.errors fallback=user.email required=True %}
               {% include 'includes/input.html' with name='phone' label='Phone' type='tel' value=form.phone.value errors=form.phone.errors fallback=user.phone_number required=True %}
-              {% include 'includes/input.html' with name='address_line_1' label='Address' col='col-12' value=form.address_line_1.value errors=form.address_line_1.errors required=True %}
-              {% include 'includes/input.html' with name='address_line_2' label='Address line 2 (optional)' col='col-12' value=form.address_line_2.value errors=form.address_line_2.errors %}
-              {% include 'includes/input.html' with name='city' label='City' col='col-md-4' value=form.city.value errors=form.city.errors required=True %}
-              {% include 'includes/input.html' with name='state' label='State / Province' col='col-md-4' value=form.state.value errors=form.state.errors required=True %}
-              {% include 'includes/input.html' with name='country' label='Country' col='col-md-4' value=form.country.value errors=form.country.errors required=True %}
+              {% include 'includes/input.html' with name='address_line_1' label='Address' col='col-12' value=form.address_line_1.value errors=form.address_line_1.errors fallback=profile.address_line_1 required=True %}
+              {% include 'includes/input.html' with name='address_line_2' label='Address line 2 (optional)' col='col-12' value=form.address_line_2.value errors=form.address_line_2.errors fallback=profile.address_line_2 %}
+              {% include 'includes/input.html' with name='city' label='City' col='col-md-4' value=form.city.value errors=form.city.errors fallback=profile.city required=True %}
+              {% include 'includes/input.html' with name='state' label='State / Province' col='col-md-4' value=form.state.value errors=form.state.errors fallback=profile.state required=True %}
+              {% include 'includes/input.html' with name='country' label='Country' col='col-md-4' value=form.country.value errors=form.country.errors fallback=profile.country required=True %}
               <div class="col-12">
                 <label for="id_order_note" class="form-label">Order note (optional)</label>
                 <textarea id="id_order_note" name="order_note" rows="2" maxlength="100" class="form-control{% if form.order_note.errors %} is-invalid{% endif %}">{{ form.order_note.value|default_if_none:'' }}</textarea>

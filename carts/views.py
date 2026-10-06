@@ -5,6 +5,7 @@ from django.db.models import Sum
 from django.shortcuts import render, redirect, get_object_or_404
 from django.views.decorators.http import require_POST
 
+from accounts.models import UserProfile
 from store.models import Product, Variation
 from .models import Cart, CartItem
 from .pricing import calculate_totals
@@ -173,7 +174,7 @@ def remove_cart_item(request, product_id, cart_item_id):
     return redirect('cart')
 
 
-def _cart_page(request, template):
+def _cart_page(request, template, **extra):
     cart_items = _cart_items(request)
     total, quantity, tax, grand_total = calculate_totals(cart_items)
     return render(request, template, {
@@ -182,6 +183,7 @@ def _cart_page(request, template):
         'quantity': quantity,
         'tax': tax,
         'grand_total': grand_total,
+        **extra,
     })
 
 
@@ -191,4 +193,6 @@ def cart(request):
 
 @login_required(login_url='login')
 def checkout(request):
-    return _cart_page(request, 'store/checkout.html')
+    # The address saved in the profile pre-fills the delivery form (Shopee's "default address").
+    profile = UserProfile.objects.filter(user=request.user).first()
+    return _cart_page(request, 'store/checkout.html', profile=profile)

@@ -513,7 +513,7 @@ body {
 }
 
 .kc-price-old {
-  color: #9a8f88;
+  color: #7d726b;  /* 4.6:1 on white (WCAG AA) */
   text-decoration: line-through;
   font-size: .8em;
 }

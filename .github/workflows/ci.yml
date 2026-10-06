@@ -175,6 +175,9 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Image size
+        run: docker image ls "${IMAGE_NAME}" --format 'table {{.Repository}}:{{.Tag}}\t{{.Size}}'
+
       - name: Trivy image scan (a CRITICAL finding fails the build)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
