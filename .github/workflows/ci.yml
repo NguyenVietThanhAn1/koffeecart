@@ -253,7 +253,10 @@ jobs:
   deploy:
     name: Deploy to the VM
     needs: build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Skipped until the server exists: set the DEPLOY_DIR repository variable once the
+    # self-hosted runner is installed. Without this a push to main would leave the job
+    # "Queued" forever, waiting for a runner that does not exist.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.DEPLOY_DIR != ''
     # A self-hosted runner installed on the VM (GitHub-hosted runners cannot reach it).
     runs-on: [self-hosted, koffeecart]
     environment: production

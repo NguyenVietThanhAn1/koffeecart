@@ -35,7 +35,7 @@ Design choices worth knowing:
 1. **Repository secrets** (Settings → Secrets and variables → Actions → Secrets)
    - `DOCKERHUB_USERNAME`: Docker Hub user; the image is `<user>/koffeecart`.
    - `DOCKERHUB_TOKEN`: a Docker Hub access token (not your password) with read/write permission.
-2. **Repository variable** `DEPLOY_DIR`: absolute path of the git clone on the VM, for example `/home/vagrant/projects/koffeecart`. That directory must contain `.env.prod`.
+2. **Repository variable** `DEPLOY_DIR`: absolute path of the git clone on the server, for example `/opt/koffeecart`. That directory must contain `.env.prod`. **The deploy job is skipped while this variable is not set**, so set it only after the runner (step 4) is installed; before that, pushes to `main` still build, test and push the image.
 3. **Environment** `production` (Settings → Environments). Optionally add *required reviewers* so a person approves each deploy.
 4. **Self-hosted runner on the VM** (Settings → Actions → Runners → New self-hosted runner). Give it the label `koffeecart`. The runner user must be able to run `docker`, and the image repository must be readable from the VM (`docker login` once on the VM if the Docker Hub repository is private).
 5. (Recommended) **Branch protection** on `main`: require the `lint`, `test`, `security` and `build` checks.
