@@ -1,40 +1,111 @@
 {% extends 'base.html' %}
+{% load store_extras %}
 
-{% block title %}{% if 'search' in request.path %}Search{% else %}Store{% endif %} | KoffeeCart{% endblock %}
+{% block title %}{% if keyword %}"{{ keyword }}"{% elif current_category %}{{ current_category.category_name }}{% else %}All products{% endif %} | KoffeeCart{% endblock %}
 
 {% block content %}
-<div class="container">
-  <div class="row">
-    <aside class="col-lg-3 mb-4">
-      <div class="card">
-        <div class="card-header fw-semibold">Categories</div>
-        <div class="list-group list-group-flush">
-          <a href="{% url 'store' %}" class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'store' %}active{% endif %}">All products</a>
+<div class="container-xl">
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb small mb-2">
+      <li class="breadcrumb-item"><a href="{% url 'home' %}">Home</a></li>
+      {% if keyword %}
+      <li class="breadcrumb-item active" aria-current="page">Search</li>
+      {% elif current_category %}
+      <li class="breadcrumb-item"><a href="{% url 'store' %}">Store</a></li>
+      <li class="breadcrumb-item active" aria-current="page">{{ current_category.category_name }}</li>
+      {% else %}
+      <li class="breadcrumb-item active" aria-current="page">Store</li>
+      {% endif %}
+    </ol>
+  </nav>
+
+  <div class="row g-3">
+    {# ---- filters ---- #}
+    <aside class="col-lg-3 col-xl-2">
+      <button class="btn btn-light w-100 d-lg-none mb-2" type="button" data-bs-toggle="collapse" data-bs-target="#filters" aria-expanded="false" aria-controls="filters">
+        <i class="fas fa-filter me-1" aria-hidden="true"></i>Filters{% if filters %} ({{ filters|length }}){% endif %}
+      </button>
+      <form class="kc-panel kc-filter p-3 collapse d-lg-block" id="filters" method="GET" action="{{ request.path }}">
+        {% if keyword %}<input type="hidden" name="keyword" value="{{ keyword }}">{% endif %}
+        {% if keyword and current_category %}<input type="hidden" name="category" value="{{ current_category.slug }}">{% endif %}
+        {% if filters.sort %}<input type="hidden" name="sort" value="{{ filters.sort }}">{% endif %}
+
+        <h2><i class="fas fa-list me-1" aria-hidden="true"></i>Categories</h2>
+        <div class="list-group mb-3">
+          <a class="list-group-item{% if not current_category %} active{% endif %}" href="{% url 'store' %}">All products</a>
           {% for category in links %}
-          <a href="{{ category.get_url }}" class="list-group-item list-group-item-action {% if request.path == category.get_url %}active{% endif %}">{{ category.category_name }}</a>
+          <a class="list-group-item{% if current_category.pk == category.pk %} active{% endif %}" href="{{ category.get_url }}">{{ category.category_name }}</a>
           {% endfor %}
         </div>
-      </div>
+
+        <h2>Price range ($)</h2>
+        <div class="d-flex align-items-center gap-1 mb-3">
+          <input type="number" class="form-control form-control-sm" name="min_price" min="0" step="0.01" placeholder="Min" value="{{ filters.min_price|default_if_none:'' }}" aria-label="Minimum price">
+          <span aria-hidden="true">&ndash;</span>
+          <input type="number" class="form-control form-control-sm" name="max_price" min="0" step="0.01" placeholder="Max" value="{{ filters.max_price|default_if_none:'' }}" aria-label="Maximum price">
+        </div>
+
+        <h2>Rating</h2>
+        <div class="mb-3">
+          {% for value in '43' %}
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="rating" id="rating-{{ value }}" value="{{ value }}"{% if filters.rating|stringformat:'s' == value %} checked{% endif %}>
+            <label class="form-check-label small" for="rating-{{ value }}">{% stars value %} &amp; up</label>
+          </div>
+          {% endfor %}
+        </div>
+
+        <h2>Show only</h2>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" name="in_stock" value="1" id="f-in-stock"{% if filters.in_stock %} checked{% endif %}>
+          <label class="form-check-label" for="f-in-stock">In stock</label>
+        </div>
+        <div class="form-check mb-3">
+          <input class="form-check-input" type="checkbox" name="on_sale" value="1" id="f-on-sale"{% if filters.on_sale %} checked{% endif %}>
+          <label class="form-check-label" for="f-on-sale">On sale</label>
+        </div>
+
+        <button type="submit" class="btn btn-primary w-100">Apply</button>
+        {% if filters.min_price or filters.max_price or filters.rating or filters.in_stock or filters.on_sale %}
+        <a class="btn btn-link w-100 mt-1" href="{{ request.path }}{% if keyword %}?keyword={{ keyword|urlencode }}{% endif %}">Clear filters</a>
+        {% endif %}
+      </form>
     </aside>
 
-    <section class="col-lg-9">
-      <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3">
-        <h1 class="section-title h4 mb-0">
-          {% if 'search' in request.path %}Results for "{{ request.GET.keyword }}"{% else %}Our store{% endif %}
-        </h1>
-        <span class="text-body-secondary small"><strong>{{ product_count }}</strong> item{{ product_count|pluralize }} found</span>
+    {# ---- results ---- #}
+    <section class="col-lg-9 col-xl-10">
+      <h1 class="h5 mb-2">
+        {% if keyword %}Results for <span class="kc-price">"{{ keyword }}"</span>{% if current_category %} in {{ current_category.category_name }}{% endif %}
+        {% elif current_category %}{{ current_category.category_name }}
+        {% else %}All products{% endif %}
+      </h1>
+
+      <div class="kc-sortbar mb-2">
+        <span class="text-body-secondary">Sort by</span>
+        {% for key, label in sorts %}{% if key != 'price_asc' and key != 'price_desc' %}
+        <a class="btn{% if sort == key %} active{% endif %}" href="{% querystring sort=key page=None %}">{{ label }}</a>
+        {% endif %}{% endfor %}
+        <div class="dropdown">
+          <button class="btn dropdown-toggle{% if sort == 'price_asc' or sort == 'price_desc' %} active{% endif %}" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+            {% if sort == 'price_asc' %}Price: low to high{% elif sort == 'price_desc' %}Price: high to low{% else %}Price{% endif %}
+          </button>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="{% querystring sort='price_asc' page=None %}">Low to high</a></li>
+            <li><a class="dropdown-item" href="{% querystring sort='price_desc' page=None %}">High to low</a></li>
+          </ul>
+        </div>
+        <span class="ms-auto small text-body-secondary"><strong>{{ product_count }}</strong> result{{ product_count|pluralize }}{% if products.paginator.num_pages > 1 %} &middot; page {{ products.number }}/{{ products.paginator.num_pages }}{% endif %}</span>
       </div>
 
       {% if products %}
-      <div class="row row-cols-2 row-cols-md-3 g-3">
-        {% for product in products %}
-        <div class="col">{% include 'includes/product_card.html' %}</div>
-        {% endfor %}
+      <div class="row row-cols-2 row-cols-md-3 row-cols-xl-5 g-2">
+        {% for product in products %}<div class="col">{% include 'includes/product_card.html' %}</div>{% endfor %}
       </div>
       {% else %}
-      <div class="text-center py-5">
+      <div class="kc-panel text-center py-5">
         <i class="fas fa-search fa-2x text-body-secondary mb-3" aria-hidden="true"></i>
-        <p class="mb-0">No products found. Try another search.</p>
+        <p class="mb-1">No products found.</p>
+        <p class="small text-body-secondary mb-0">Try other words, or clear the filters.</p>
       </div>
       {% endif %}
 
@@ -42,21 +113,21 @@
       <nav class="mt-4" aria-label="Product pages">
         <ul class="pagination justify-content-center">
           {% if products.has_previous %}
-          <li class="page-item"><a class="page-link" href="?page={{ products.previous_page_number }}">Previous</a></li>
+          <li class="page-item"><a class="page-link" href="{% querystring page=products.previous_page_number %}" aria-label="Previous page">&lsaquo;</a></li>
           {% else %}
-          <li class="page-item disabled"><span class="page-link">Previous</span></li>
+          <li class="page-item disabled"><span class="page-link">&lsaquo;</span></li>
           {% endif %}
           {% for i in products.paginator.page_range %}
           {% if products.number == i %}
           <li class="page-item active" aria-current="page"><span class="page-link">{{ i }}</span></li>
           {% else %}
-          <li class="page-item"><a class="page-link" href="?page={{ i }}">{{ i }}</a></li>
+          <li class="page-item"><a class="page-link" href="{% querystring page=i %}">{{ i }}</a></li>
           {% endif %}
           {% endfor %}
           {% if products.has_next %}
-          <li class="page-item"><a class="page-link" href="?page={{ products.next_page_number }}">Next</a></li>
+          <li class="page-item"><a class="page-link" href="{% querystring page=products.next_page_number %}" aria-label="Next page">&rsaquo;</a></li>
           {% else %}
-          <li class="page-item disabled"><span class="page-link">Next</span></li>
+          <li class="page-item disabled"><span class="page-link">&rsaquo;</span></li>
           {% endif %}
         </ul>
       </nav>

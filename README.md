@@ -13,13 +13,16 @@ What was wrong with the original and how each problem was fixed is written up in
 
 ## Features
 
-- Catalogue with categories, search, pagination, product variations (size, colour) and reviews
-  (only buyers can review)
+- Marketplace-style catalogue (layout ideas from Amazon and Shopee, coffee colours): search with a
+  category picker, filters (price, rating, in stock, on sale), sorting (popular, latest, top sales,
+  top rated, price), sale prices with discount badges, "sold" counts, related products
+- Product page with size/colour chips, quantity picker, "Add to cart" and "Buy now", and an
+  Amazon-style rating breakdown; reviews only from buyers, marked "Verified purchase"
 - Guest cart that merges into the user's cart on login
 - Checkout with **cash on delivery**: the server decides amount, status and transaction id;
   stock is reserved with row locks so the last item cannot be sold twice
 - Accounts: email activation, password reset, profile, order history, printable invoices
-- Bootstrap 5.3 UI with a coffee theme, no jQuery, strict Content-Security-Policy
+- Bootstrap 5.3 UI, responsive down to phone width, no jQuery, strict Content-Security-Policy
 
 ## Architecture
 
@@ -49,7 +52,7 @@ python -m venv .venv && source .venv/bin/activate        # Windows: .venv\Script
 pip install --require-hashes -r requirements.txt -r requirements-dev.txt
 export SECRET_KEY=dev DEBUG=True ALLOWED_HOSTS=localhost,127.0.0.1
 python manage.py migrate
-python manage.py seed_demo          # 4 categories, 10 products with generated photos, reviews
+python manage.py seed_demo          # categories, 17 products (generated photos), sales, orders, reviews
 python manage.py createsuperuser    # admin is at /securelogin/
 python manage.py runserver
 ```

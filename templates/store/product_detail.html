@@ -4,18 +4,20 @@
 {% block title %}{{ single_product.product_name }} | KoffeeCart{% endblock %}
 
 {% block content %}
-<div class="container">
+<div class="container-xl">
   <nav aria-label="breadcrumb">
-    <ol class="breadcrumb">
+    <ol class="breadcrumb small mb-2">
+      <li class="breadcrumb-item"><a href="{% url 'home' %}">Home</a></li>
       <li class="breadcrumb-item"><a href="{% url 'store' %}">Store</a></li>
       <li class="breadcrumb-item"><a href="{{ single_product.category.get_url }}">{{ single_product.category.category_name }}</a></li>
       <li class="breadcrumb-item active" aria-current="page">{{ single_product.product_name }}</li>
     </ol>
   </nav>
 
-  <div class="card p-3 p-lg-4 mb-4">
+  {# ---- gallery + buy box ---- #}
+  <div class="kc-panel p-3 p-lg-4 mb-3">
     <div class="row g-4">
-      <div class="col-md-6">
+      <div class="col-md-5">
         <img src="{{ single_product.images.url }}" class="gallery-main" alt="{{ single_product.product_name }}" data-gallery-main>
         {% if product_gallery %}
         <div class="d-flex flex-wrap gap-2 mt-3">
@@ -27,112 +29,186 @@
         {% endif %}
       </div>
 
-      <div class="col-md-6">
-        <h1 class="h2">{{ single_product.product_name }}</h1>
-        <div class="mb-3">{% stars single_product.averageReview single_product.countReview %}</div>
-        <p class="price fs-3 mb-3">${{ single_product.price }}</p>
-        <p>{{ single_product.description|linebreaksbr }}</p>
-        <hr>
+      <div class="col-md-7">
+        <h1 class="h4 mb-2">{{ single_product.product_name }}</h1>
+        <div class="d-flex flex-wrap align-items-center gap-3 small mb-3">
+          {% if single_product.review_count %}
+          <a href="#reviews" class="text-decoration-none d-inline-flex align-items-center gap-1">
+            <span class="kc-price">{{ single_product.averageReview|floatformat:1 }}</span>{% stars single_product.averageReview %}
+          </a>
+          <span class="vr"></span>
+          <a href="#reviews">{{ single_product.review_count }} rating{{ single_product.review_count|pluralize }}</a>
+          {% else %}
+          <span class="text-body-secondary">No ratings yet</span>
+          {% endif %}
+          <span class="vr"></span>
+          <span><strong>{{ single_product.sold|compact }}</strong> sold</span>
+        </div>
+
+        <div class="kc-price-box d-flex flex-wrap align-items-center gap-3 mb-2">
+          {% if single_product.discount_percent %}<span class="kc-price-old fs-6">${{ single_product.compare_at_price }}</span>{% endif %}
+          <span class="kc-price">${{ single_product.price }}</span>
+          {% if single_product.discount_percent %}<span class="kc-badge-inline">{{ single_product.discount_percent }}% OFF</span>{% endif %}
+        </div>
+        <p class="small text-body-secondary mb-3">2% tax added at checkout &middot; <i class="fas fa-money-bill-wave" aria-hidden="true"></i> Pay cash on delivery</p>
 
         {% if single_product.stock <= 0 %}
-        <p class="text-danger fw-semibold mb-0"><i class="fas fa-times-circle me-1" aria-hidden="true"></i>Out of stock</p>
+        <p class="kc-stock-low mb-0"><i class="fas fa-times-circle me-1" aria-hidden="true"></i>Sold out. Check back soon.</p>
         {% else %}
         <form action="{% url 'add_cart' single_product.id %}" method="POST">
           {% csrf_token %}
           {% with colors=single_product.variation_set.colors sizes=single_product.variation_set.sizes %}
-          <div class="row g-3 mb-3">
-            {% if colors %}
-            <div class="col-sm-6">
-              <label for="variation-color" class="form-label">Color</label>
-              <select id="variation-color" name="color" class="form-select" required>
-                <option value="" selected disabled>Choose...</option>
-                {% for v in colors %}<option value="{{ v.variation_value }}">{{ v.variation_value|capfirst }}</option>{% endfor %}
-              </select>
+          {% if colors %}
+          <div class="d-flex align-items-start gap-3 mb-3" role="radiogroup" aria-labelledby="label-color">
+            <span class="kc-label pt-1" id="label-color">Color</span>
+            <div class="d-flex flex-wrap gap-2">
+              {% for v in colors %}
+              <input type="radio" class="btn-check" name="color" id="color-{{ v.id }}" value="{{ v.variation_value }}" autocomplete="off" required>
+              <label class="btn kc-chip" for="color-{{ v.id }}">{{ v.variation_value|capfirst }}</label>
+              {% endfor %}
             </div>
-            {% endif %}
-            {% if sizes %}
-            <div class="col-sm-6">
-              <label for="variation-size" class="form-label">Size</label>
-              <select id="variation-size" name="size" class="form-select" required>
-                <option value="" selected disabled>Choose...</option>
-                {% for v in sizes %}<option value="{{ v.variation_value }}">{{ v.variation_value|capfirst }}</option>{% endfor %}
-              </select>
-            </div>
-            {% endif %}
           </div>
+          {% endif %}
+          {% if sizes %}
+          <div class="d-flex align-items-start gap-3 mb-3" role="radiogroup" aria-labelledby="label-size">
+            <span class="kc-label pt-1" id="label-size">Size</span>
+            <div class="d-flex flex-wrap gap-2">
+              {% for v in sizes %}
+              <input type="radio" class="btn-check" name="size" id="size-{{ v.id }}" value="{{ v.variation_value }}" autocomplete="off" required>
+              <label class="btn kc-chip" for="size-{{ v.id }}">{{ v.variation_value }}</label>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
           {% endwith %}
-          <div class="d-flex align-items-center gap-3">
-            <button type="submit" class="btn btn-primary btn-lg"><i class="fas fa-cart-plus me-2" aria-hidden="true"></i>Add to cart</button>
-            {% if in_cart %}<a href="{% url 'cart' %}" class="small">Already in your cart ({{ cart_item.quantity }}). View cart</a>{% endif %}
+
+          <div class="d-flex flex-wrap align-items-center gap-3 mb-3">
+            <label class="kc-label" for="quantity">Quantity</label>
+            {% if can_add %}
+            <div class="input-group input-group-sm kc-qty" data-qty>
+              <button class="btn btn-light" type="button" data-qty-step="-1" aria-label="One less">&minus;</button>
+              <input type="number" class="form-control" id="quantity" name="quantity" value="1" min="1" max="{{ can_add }}">
+              <button class="btn btn-light" type="button" data-qty-step="1" aria-label="One more">+</button>
+            </div>
+            {% endif %}
+            {% if single_product.stock <= 5 %}
+            <span class="small kc-stock-low">Only {{ single_product.stock }} left</span>
+            {% else %}
+            <span class="small kc-stock-ok">In stock</span>
+            {% endif %}
           </div>
+
+          {% if can_add %}
+          <div class="d-flex flex-wrap gap-2">
+            <button type="submit" class="btn btn-outline-primary btn-lg"><i class="fas fa-cart-plus me-2" aria-hidden="true"></i>Add to cart</button>
+            <button type="submit" name="buy_now" value="1" class="btn btn-primary btn-lg px-5">Buy now</button>
+          </div>
+          {% if in_cart_quantity %}
+          <p class="small mt-2 mb-0"><i class="fas fa-check text-success me-1" aria-hidden="true"></i>{{ in_cart_quantity }} already in your <a href="{% url 'cart' %}">cart</a></p>
+          {% endif %}
+          {% else %}
+          <p class="kc-stock-low mb-0">All {{ single_product.stock }} in stock are already in your cart. <a href="{% url 'cart' %}">View cart</a></p>
+          {% endif %}
         </form>
-        <p class="small text-body-secondary mt-3 mb-0">{{ single_product.stock }} in stock &middot; Cash on delivery</p>
         {% endif %}
       </div>
     </div>
   </div>
 
-  <div class="row g-4">
-    <section class="col-lg-7 order-lg-2">
-      <h2 class="h4 d-flex align-items-center gap-2">Customer reviews {% stars single_product.averageReview single_product.countReview %}</h2>
-      {% for review in reviews %}
-      <article class="card mb-3">
-        <div class="card-body">
-          <div class="d-flex justify-content-between flex-wrap gap-2">
-            <strong>{{ review.user.full_name }}</strong>
-            <time class="small text-body-secondary" datetime="{{ review.updated_at|date:'c' }}">{{ review.updated_at|date:'M j, Y' }}</time>
-          </div>
-          <div class="mb-2">{% stars review.rating %}</div>
-          {% if review.subject %}<h3 class="h6 mb-1">{{ review.subject }}</h3>{% endif %}
-          <p class="mb-0">{{ review.review }}</p>
-        </div>
-      </article>
-      {% empty %}
-      <p class="text-body-secondary">No reviews yet.</p>
-      {% endfor %}
-    </section>
+  {# ---- description ---- #}
+  {% if single_product.description %}
+  <section class="kc-panel mb-3" aria-labelledby="desc-title">
+    <div class="kc-section-head"><h2 class="kc-section-title" id="desc-title">Product description</h2></div>
+    <div class="p-3">{{ single_product.description|linebreaksbr }}</div>
+  </section>
+  {% endif %}
 
-    <section class="col-lg-5 order-lg-1">
-      <div class="card">
-        <div class="card-body">
-          <h2 class="h5 card-title">Write a review</h2>
-          {% if not user.is_authenticated %}
-          <p class="mb-0">Please <a href="{% url 'login' %}">sign in</a> to review this product.</p>
-          {% elif not orderproduct %}
-          <p class="mb-0 text-body-secondary">Only customers who bought this product can review it.</p>
-          {% else %}
-          <form action="{% url 'submit_review' single_product.id %}" method="POST">
-            {% csrf_token %}
-            <div class="mb-3">
-              <label for="review-rating" class="form-label">Rating</label>
-              <select id="review-rating" name="rating" class="form-select" required>
-                <option value="" selected disabled>Choose a rating...</option>
-                <option value="5">5 - Excellent</option>
-                <option value="4.5">4.5</option>
-                <option value="4">4 - Good</option>
-                <option value="3.5">3.5</option>
-                <option value="3">3 - Average</option>
-                <option value="2.5">2.5</option>
-                <option value="2">2 - Poor</option>
-                <option value="1.5">1.5</option>
-                <option value="1">1 - Terrible</option>
-                <option value="0.5">0.5</option>
-              </select>
-            </div>
-            <div class="mb-3">
-              <label for="review-subject" class="form-label">Title</label>
-              <input type="text" id="review-subject" name="subject" maxlength="100" class="form-control">
-            </div>
-            <div class="mb-3">
-              <label for="review-text" class="form-label">Review</label>
-              <textarea id="review-text" name="review" rows="4" maxlength="500" class="form-control"></textarea>
-            </div>
-            <button type="submit" class="btn btn-primary">Submit review</button>
-          </form>
-          {% endif %}
+  {# ---- reviews (Amazon-style summary) ---- #}
+  <section class="kc-panel mb-3" id="reviews" aria-labelledby="reviews-title">
+    <div class="kc-section-head"><h2 class="kc-section-title" id="reviews-title">Ratings &amp; reviews</h2></div>
+    <div class="row g-4 p-3">
+      <div class="col-lg-4">
+        <div class="d-flex align-items-end gap-2 mb-1">
+          <span class="kc-rating-big">{{ single_product.averageReview|floatformat:1 }}</span><span class="text-body-secondary mb-1">out of 5</span>
         </div>
+        <div class="mb-1">{% stars single_product.averageReview %}</div>
+        <p class="small text-body-secondary">{{ single_product.review_count }} rating{{ single_product.review_count|pluralize }}</p>
+        {% for stars_count, count, percent in rating_breakdown %}
+        <div class="d-flex align-items-center gap-2 small mb-1">
+          <span class="text-nowrap">{{ stars_count }} star</span>
+          <div class="kc-bar" role="img" aria-label="{{ percent }}% of ratings are {{ stars_count }} stars"><span class="{{ percent|kc_width }}"></span></div>
+          <span class="text-end text-body-secondary">{{ percent }}%</span>
+        </div>
+        {% endfor %}
+
+        <hr>
+        <h3 class="h6">Review this product</h3>
+        {% if not user.is_authenticated %}
+        <p class="small mb-0">Please <a href="{% url 'login' %}?next={{ request.path|urlencode }}">sign in</a> to write a review.</p>
+        {% elif not orderproduct %}
+        <p class="small text-body-secondary mb-0">Only customers who bought this product can review it.</p>
+        {% else %}
+        <form action="{% url 'submit_review' single_product.id %}" method="POST">
+          {% csrf_token %}
+          <div class="mb-2">
+            <label for="review-rating" class="form-label small">Rating</label>
+            <select id="review-rating" name="rating" class="form-select form-select-sm" required>
+              <option value="" selected disabled>Choose a rating...</option>
+              <option value="5">5 - Excellent</option>
+              <option value="4.5">4.5</option>
+              <option value="4">4 - Good</option>
+              <option value="3.5">3.5</option>
+              <option value="3">3 - Average</option>
+              <option value="2.5">2.5</option>
+              <option value="2">2 - Poor</option>
+              <option value="1.5">1.5</option>
+              <option value="1">1 - Terrible</option>
+              <option value="0.5">0.5</option>
+            </select>
+          </div>
+          <div class="mb-2">
+            <label for="review-subject" class="form-label small">Title</label>
+            <input type="text" id="review-subject" name="subject" maxlength="100" class="form-control form-control-sm">
+          </div>
+          <div class="mb-2">
+            <label for="review-text" class="form-label small">Review</label>
+            <textarea id="review-text" name="review" rows="3" maxlength="500" class="form-control form-control-sm"></textarea>
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm">Submit review</button>
+        </form>
+        {% endif %}
       </div>
-    </section>
-  </div>
+
+      <div class="col-lg-8">
+        {% for review in reviews %}
+        <article class="border-bottom pb-3 mb-3">
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <i class="fas fa-user-circle fa-lg text-body-secondary" aria-hidden="true"></i>
+            <strong class="small">{{ review.user.full_name }}</strong>
+            {% if review.user_id in verified_buyers %}<span class="badge text-bg-light border small"><i class="fas fa-check me-1" aria-hidden="true"></i>Verified purchase</span>{% endif %}
+          </div>
+          <div class="small mb-1">{% stars review.rating %} {% if review.subject %}<strong class="ms-1">{{ review.subject }}</strong>{% endif %}</div>
+          <time class="small text-body-secondary d-block mb-1" datetime="{{ review.updated_at|date:'c' }}">Reviewed on {{ review.updated_at|date:'M j, Y' }}</time>
+          <p class="mb-0">{{ review.review }}</p>
+        </article>
+        {% empty %}
+        <p class="text-body-secondary mb-0">No reviews yet.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
+  {# ---- related ---- #}
+  {% if related_products %}
+  <section class="kc-panel" aria-labelledby="related-title">
+    <div class="kc-section-head">
+      <h2 class="kc-section-title" id="related-title">More from {{ single_product.category.category_name }}</h2>
+      <a class="kc-see-all" href="{{ single_product.category.get_url }}">See all <i class="fas fa-chevron-right" aria-hidden="true"></i></a>
+    </div>
+    <div class="row row-cols-2 row-cols-md-3 row-cols-lg-6 g-2 p-2">
+      {% for product in related_products %}<div class="col">{% include 'includes/product_card.html' %}</div>{% endfor %}
+    </div>
+  </section>
+  {% endif %}
 </div>
 {% endblock %}

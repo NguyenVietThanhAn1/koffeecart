@@ -2,25 +2,105 @@
 {% load static %}
 
 {% block content %}
-<div class="container">
-  <section class="hero mb-5">
-    <img src="{% static 'images/banner.webp' %}" width="1408" height="524"
-         alt="KoffeeCart: premium beans, timeless tradition. Sacks of roasted and green coffee beans.">
-  </section>
+<div class="container-xl">
 
-  <section>
-    <div class="d-flex justify-content-between align-items-end mb-3">
-      <h2 class="section-title h3 mb-0">Our coffee</h2>
-      <a href="{% url 'store' %}" class="btn btn-outline-primary btn-sm">See all <i class="fas fa-arrow-right ms-1" aria-hidden="true"></i></a>
+  {# ---- banner + two promos (Shopee layout) ---- #}
+  <div class="row g-2 mb-3">
+    <div class="col-lg-8 kc-hero">
+      <img src="{% static 'images/banner.webp' %}" width="1408" height="524"
+           alt="KoffeeCart: premium beans, timeless tradition. Sacks of roasted and green coffee beans.">
     </div>
+    <div class="col-lg-4">
+      <div class="row g-2 h-100">
+        {% if max_discount %}
+        <div class="col-6 col-lg-12">
+          <a class="kc-promo kc-promo-deals" href="{% url 'store' %}?on_sale=1">
+            <small class="fw-bold">TODAY'S DEALS</small>
+            <strong>Up to {{ max_discount }}% off</strong>
+            <span class="small">Selected beans and gear <i class="fas fa-chevron-right" aria-hidden="true"></i></span>
+          </a>
+        </div>
+        {% endif %}
+        <div class="{% if max_discount %}col-6 col-lg-12{% else %}col-12{% endif %}">
+          <a class="kc-promo kc-promo-cod" href="{% url 'store' %}">
+            <small class="fw-bold">NO CARD NEEDED</small>
+            <strong>Pay cash on delivery</strong>
+            <span class="small">Order now, pay at your door <i class="fas fa-chevron-right" aria-hidden="true"></i></span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
 
-    <div class="row row-cols-2 row-cols-md-3 row-cols-lg-4 g-3 g-lg-4">
-      {% for product in products %}
-      <div class="col">{% include 'includes/product_card.html' %}</div>
-      {% empty %}
-      <p class="text-body-secondary">No products yet. Run <code>python manage.py seed_demo</code> to add some.</p>
+  {# ---- why buy here ---- #}
+  <div class="kc-panel kc-trust px-3 py-2 mb-3">
+    <div class="row row-cols-2 row-cols-md-4 g-2 text-center text-md-start">
+      <div class="col d-flex flex-column flex-md-row align-items-center gap-2"><i class="fas fa-money-bill-wave" aria-hidden="true"></i><span><strong>Cash on delivery</strong><br class="d-none d-md-inline"> Pay at your door</span></div>
+      <div class="col d-flex flex-column flex-md-row align-items-center gap-2"><i class="fas fa-shield-alt" aria-hidden="true"></i><span><strong>Secure checkout</strong><br class="d-none d-md-inline"> Your data stays private</span></div>
+      <div class="col d-flex flex-column flex-md-row align-items-center gap-2"><i class="fas fa-star" aria-hidden="true"></i><span><strong>Real reviews</strong><br class="d-none d-md-inline"> Only buyers can review</span></div>
+      <div class="col d-flex flex-column flex-md-row align-items-center gap-2"><i class="fas fa-truck" aria-hidden="true"></i><span><strong>Nationwide delivery</strong><br class="d-none d-md-inline"> Track it in your orders</span></div>
+    </div>
+  </div>
+
+  {# ---- categories ---- #}
+  {% if categories %}
+  <section class="kc-panel mb-3" aria-labelledby="home-categories">
+    <div class="kc-section-head"><h2 class="kc-section-title" id="home-categories">Categories</h2></div>
+    <div class="row row-cols-3 row-cols-md-4 row-cols-lg-6 g-0">
+      {% for category in categories %}
+      <div class="col">
+        <a class="kc-category-tile" href="{{ category.get_url }}">
+          {% if category.cat_image %}<img src="{{ category.cat_image.url }}" alt="" loading="lazy">
+          {% elif category.cover %}<img src="{% get_media_prefix %}{{ category.cover }}" alt="" loading="lazy">
+          {% else %}<span class="kc-category-icon"><i class="fas fa-coffee" aria-hidden="true"></i></span>{% endif %}
+          <span>{{ category.category_name }}</span>
+          <small class="text-body-secondary">{{ category.product_count }} item{{ category.product_count|pluralize }}</small>
+        </a>
+      </div>
       {% endfor %}
     </div>
+  </section>
+  {% endif %}
+
+  {# ---- deals ---- #}
+  {% if deals %}
+  <section class="kc-panel mb-3" aria-labelledby="home-deals">
+    <div class="kc-section-head">
+      <h2 class="kc-section-title kc-hot" id="home-deals"><i class="fas fa-bolt me-1" aria-hidden="true"></i>Today's deals</h2>
+      <a class="kc-see-all" href="{% url 'store' %}?on_sale=1">See all <i class="fas fa-chevron-right" aria-hidden="true"></i></a>
+    </div>
+    <div class="row row-cols-2 row-cols-md-3 row-cols-lg-6 g-2 p-2">
+      {% for product in deals %}<div class="col">{% include 'includes/product_card.html' %}</div>{% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {# ---- best sellers ---- #}
+  {% if best_sellers %}
+  <section class="kc-panel mb-3" aria-labelledby="home-best">
+    <div class="kc-section-head">
+      <h2 class="kc-section-title" id="home-best"><i class="fas fa-fire me-1" aria-hidden="true"></i>Best sellers</h2>
+      <a class="kc-see-all" href="{% url 'store' %}?sort=sales">See all <i class="fas fa-chevron-right" aria-hidden="true"></i></a>
+    </div>
+    <div class="row row-cols-2 row-cols-md-3 row-cols-lg-6 g-2 p-2">
+      {% for product in best_sellers %}<div class="col">{% include 'includes/product_card.html' %}</div>{% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {# ---- everything else ---- #}
+  <section aria-labelledby="home-all">
+    <div class="kc-panel mb-2"><div class="kc-section-head justify-content-center"><h2 class="kc-section-title kc-hot" id="home-all">Recommended for you</h2></div></div>
+    {% if products %}
+    <div class="row row-cols-2 row-cols-md-4 row-cols-lg-6 g-2">
+      {% for product in products %}<div class="col">{% include 'includes/product_card.html' %}</div>{% endfor %}
+    </div>
+    <div class="text-center mt-3">
+      <a href="{% url 'store' %}" class="btn btn-light px-5">See more</a>
+    </div>
+    {% else %}
+    <p class="text-body-secondary kc-panel p-4 text-center">No products yet. Run <code>python manage.py seed_demo</code> to add some.</p>
+    {% endif %}
   </section>
 </div>
 {% endblock %}

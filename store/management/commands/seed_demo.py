@@ -1,16 +1,19 @@
 """Fill an empty shop with demo data: categories, products (with generated photos),
-variations and a few reviews.
+variations, sale prices, past orders and reviews.
 
     python manage.py seed_demo
     docker compose --env-file .env.prod -f docker-compose.prod.yml exec web python manage.py seed_demo
 
-Safe to run again: everything is looked up by slug/email first, so nothing is duplicated,
-and photos are only drawn when the product has none. Product photos are generated with
-Pillow, so the repository does not need to carry image files.
+Safe to run again: everything is looked up by slug/email/order number first, so nothing is
+duplicated, and photos are only drawn when the product has none. Product photos are generated
+with Pillow, so the repository does not need to carry image files.
+
+The demo orders belong to the review authors, so every demo review is by a real buyer (the
+shop only accepts reviews from buyers) and the "sold" counts come from real order lines.
 """
 import io
 import textwrap
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 
 from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand
@@ -18,7 +21,9 @@ from django.db import transaction
 from PIL import Image, ImageDraw, ImageFont
 
 from accounts.models import Account
+from carts.pricing import CENT, TAX_RATE
 from category.models import Category
+from orders.models import Order, OrderProduct, Payment
 from store.models import Product, ReviewRating, Variation
 
 CATEGORIES = [
@@ -60,7 +65,52 @@ PRODUCTS = [
     ('ceramic-mug', 'Ceramic Mug 350ml', 'gear', '8.50', 70,
      'Hand-glazed stoneware mug that keeps your coffee warm.',
      '#b98b5b', ('color', ['cream', 'espresso', 'sage'])),
+    ('brazil-santos', 'Brazil Santos', 'single-origin', '14.50', 55,
+     'Nutty, low-acid and smooth. An easy everyday bean for any brew method.',
+     '#7b4a2d', ('size', ['250g', '500g', '1kg'])),
+    ('kenya-aa', 'Kenya AA', 'single-origin', '21.00', 4,
+     'Juicy blackcurrant and grapefruit, bright and winey. Small lot, few bags left.',
+     '#5e2f24', ('size', ['250g'])),
+    ('midnight-dark-roast', 'Midnight Dark Roast', 'blends', '13.50', 38,
+     'Smoky, bittersweet and heavy-bodied. Stands up to milk and sugar.',
+     '#1f130d', ('size', ['250g', '500g'])),
+    ('decaf-swiss-water', 'Decaf Swiss Water', 'blends', '15.50', 22,
+     'Decaffeinated with water only, no chemicals. Milk chocolate and toffee.',
+     '#8a6a4f', ('size', ['250g'])),
+    ('cold-brew-concentrate', 'Cold Brew Concentrate 1L', 'cold-brew', '12.00', 30,
+     'Ready to pour: mix one part concentrate with two parts milk or water over ice.',
+     '#3f2a1f', None),
+    ('hand-grinder', 'Ceramic Burr Hand Grinder', 'gear', '32.00', 15,
+     'Adjustable ceramic burrs for anything from espresso to cold brew.',
+     '#a97b50', None),
+    ('gooseneck-kettle', 'Gooseneck Pour-over Kettle', 'gear', '28.00', 12,
+     'Slow, steady pour for V60 and Chemex. Works on gas and induction.',
+     '#9c6f45', ('color', ['black', 'silver'])),
 ]
+
+# slug -> original price, shown struck through with a discount badge
+COMPARE_AT = {
+    'vietnam-robusta-dak-lak': '15.00',
+    'colombia-huila': '19.00',
+    'cold-brew-bags': '13.00',
+    'ceramic-mug': '10.00',
+    'kenya-aa': '24.00',
+    'midnight-dark-roast': '16.00',
+    'cold-brew-concentrate': '14.00',
+    'hand-grinder': '39.00',
+}
+
+# slug -> units sold in demo orders, so "sold" counts and best sellers have something to show
+SALES = {
+    'vietnam-robusta-dak-lak': 124,
+    'house-espresso': 86,
+    'vietnamese-phin': 57,
+    'ethiopia-yirgacheffe': 31,
+    'cold-brew-coarse': 22,
+    'ceramic-mug': 18,
+    'colombia-huila': 12,
+    'kenya-aa': 9,
+}
 
 REVIEWERS = [
     ('linh.demo@koffeecart.invalid', 'Linh', 'Tran'),
@@ -121,8 +171,32 @@ def draw_product_photo(name, background):
     return out.getvalue()
 
 
+def _demo_order_lines():
+    """[(reviewer index, product slug, quantity)]: every reviewer bought what they reviewed,
+    and the bulk of SALES goes to the reviewers in turn."""
+    lines = [(who, slug, 1) for slug, entries in REVIEWS.items() for who, *_ in entries]
+    lines += [(i % len(REVIEWERS), slug, qty) for i, (slug, qty) in enumerate(SALES.items())]
+    return lines
+
+
+def _create_demo_order(number, user, product, quantity):
+    total = product.price * quantity
+    tax = (total * TAX_RATE).quantize(CENT, rounding=ROUND_HALF_UP)
+    payment = Payment.objects.create(
+        user=user, payment_id=f'COD-{number}', payment_method='COD',
+        amount_paid=total + tax, status='Completed')
+    order = Order.objects.create(
+        user=user, payment=payment, order_number=number,
+        first_name=user.first_name, last_name=user.last_name, phone='0900000000', email=user.email,
+        address_line_1='1 Demo Street', city='Ha Noi', state='Ha Noi', country='Vietnam',
+        order_total=total + tax, tax=tax, status='Completed', is_ordered=True)
+    OrderProduct.objects.create(
+        order=order, payment=payment, user=user, product=product,
+        quantity=quantity, product_price=product.price, ordered=True)
+
+
 class Command(BaseCommand):
-    help = 'Create demo categories, products (with generated photos), variations and reviews.'
+    help = 'Create demo categories, products (with generated photos), variations, orders and reviews.'
 
     @transaction.atomic
     def handle(self, *args, **options):
@@ -139,6 +213,8 @@ class Command(BaseCommand):
                 product = Product(slug=slug, product_name=name, category=categories[cat],
                                   price=Decimal(price), stock=stock, description=description)
                 created += 1
+            if slug in COMPARE_AT and product.compare_at_price is None and Decimal(COMPARE_AT[slug]) > product.price:
+                product.compare_at_price = Decimal(COMPARE_AT[slug])
             if not product.images or not product.images.storage.exists(product.images.name):
                 # save=False: the product row is saved once, just below
                 product.images.save(f'{slug}.png', ContentFile(draw_product_photo(name, colour)), save=False)
@@ -164,6 +240,13 @@ class Command(BaseCommand):
                 user.save()
             reviewers.append(user)
 
+        orders = 0
+        for n, (who, slug, quantity) in enumerate(_demo_order_lines(), start=1):
+            number = f'DEMO{n:04d}'
+            if not Order.objects.filter(order_number=number).exists():
+                _create_demo_order(number, reviewers[who], products[slug], quantity)
+                orders += 1
+
         reviews = 0
         for slug, entries in REVIEWS.items():
             for who, rating, subject, text in entries:
@@ -174,4 +257,4 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS(
             f'Demo data ready: {len(categories)} categories, {len(products)} products '
-            f'({created} new, {photos} photos drawn), {reviews} new reviews.'))
+            f'({created} new, {photos} photos drawn), {orders} new orders, {reviews} new reviews.'))

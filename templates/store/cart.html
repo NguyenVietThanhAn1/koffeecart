@@ -3,12 +3,12 @@
 {% block title %}Your cart | KoffeeCart{% endblock %}
 
 {% block content %}
-<div class="container">
-  <h1 class="section-title h3 mb-4">Your cart</h1>
+<div class="container-xl">
+  <h1 class="section-title h3 mb-3">Shopping cart</h1>
 
   {% if not cart_items %}
-  <div class="card text-center py-5">
-    <div class="card-body">
+  <div class="kc-panel text-center py-5">
+    <div class="p-3">
       <i class="fas fa-shopping-basket fa-3x text-body-secondary mb-3" aria-hidden="true"></i>
       <p class="mb-3">Your cart is empty.</p>
       <a href="{% url 'store' %}" class="btn btn-primary">Browse coffee</a>
@@ -17,7 +17,7 @@
   {% else %}
   <div class="row g-4">
     <section class="col-lg-8">
-      <div class="card">
+      <div class="kc-panel">
         <ul class="list-group list-group-flush">
           {% for cart_item in cart_items %}
           <li class="list-group-item d-flex flex-wrap gap-3 align-items-center py-3">
@@ -34,7 +34,7 @@
             <div class="d-flex align-items-center gap-2">
               <button type="submit" form="cart-dec-{{ cart_item.id }}" class="btn btn-outline-primary btn-qty" aria-label="One less">&minus;</button>
               <span class="qty-value" aria-label="Quantity">{{ cart_item.quantity }}</span>
-              <button type="submit" form="cart-inc-{{ cart_item.id }}" class="btn btn-outline-primary btn-qty" aria-label="One more">+</button>
+              <button type="submit" form="cart-inc-{{ cart_item.id }}" class="btn btn-outline-primary btn-qty" aria-label="One more"{% if cart_item.quantity >= cart_item.product.stock %} disabled title="No more in stock"{% endif %}>+</button>
             </div>
 
             <div class="text-end ms-auto">
@@ -49,12 +49,12 @@
     </section>
 
     <aside class="col-lg-4">
-      <div class="card summary-card">
-        <div class="card-body">
-          <h2 class="h5 card-title mb-3">Order summary</h2>
+      <div class="kc-panel summary-card">
+        <div class="p-3">
+          <h2 class="h5 mb-3">Order summary</h2>
           {% include 'includes/totals.html' %}
           <hr>
-          <a href="{% url 'checkout' %}" class="btn btn-primary w-100 btn-lg">Checkout</a>
+          <a href="{% url 'checkout' %}" class="btn btn-primary w-100 btn-lg">Proceed to checkout ({{ quantity }} item{{ quantity|pluralize }})</a>
           <p class="small text-body-secondary text-center mt-2 mb-0">Pay cash on delivery</p>
         </div>
       </div>

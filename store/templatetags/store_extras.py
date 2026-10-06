@@ -23,3 +23,21 @@ def star_icons(value):
 def stars(value, count=None):
     """{% stars product.averageReview product.countReview %} -> five stars and "(n)"."""
     return {'icons': star_icons(value), 'value': float(value or 0), 'count': count}
+
+
+@register.filter
+def compact(number):
+    """1234 -> "1.2k", 25000 -> "25k" (Shopee-style sold counts)."""
+    number = int(number or 0)
+    if number < 1000:
+        return str(number)
+    value = number / 1000
+    text = f'{value:.1f}'.rstrip('0').rstrip('.') if value < 10 else str(int(value))
+    return f'{text}k'
+
+
+@register.filter
+def kc_width(percent):
+    """A width class in 5% steps (kc-w-0 ... kc-w-100): bars without inline styles, which the CSP blocks."""
+    step = int(round(max(0, min(100, float(percent or 0))) / 5) * 5)
+    return f'kc-w-{step}'

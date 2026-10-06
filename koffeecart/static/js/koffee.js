@@ -12,6 +12,19 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  // Quantity picker on the product page: the -/+ buttons stay within the input's min and max.
+  document.querySelectorAll('[data-qty]').forEach((group) => {
+    const input = group.querySelector('input');
+    group.querySelectorAll('[data-qty-step]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const min = Number(input.min) || 1;
+        const max = Number(input.max) || 99;
+        const value = (Number(input.value) || min) + Number(button.dataset.qtyStep);
+        input.value = Math.min(max, Math.max(min, value));
+      });
+    });
+  });
+
   // Invoice page: print button.
   document.querySelectorAll('[data-print]').forEach((button) => {
     button.addEventListener('click', () => window.print());

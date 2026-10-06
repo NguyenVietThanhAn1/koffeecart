@@ -110,7 +110,7 @@ def test_product_page_offers_variations(client, product):
     for colour in ('red', 'blue'):
         Variation.objects.create(product=product, variation_category='color', variation_value=colour)
     html = client.get(product.get_url()).content.decode()
-    assert '<select id="variation-color" name="color"' in html
+    assert html.count('type="radio" class="btn-check" name="color"') == 2
     assert 'value="blue"' in html and 'value="red"' in html
 
 

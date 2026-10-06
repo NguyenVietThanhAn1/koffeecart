@@ -3,8 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}KoffeeCart | Premium coffee beans{% endblock %}</title>
-  <meta name="description" content="KoffeeCart: premium coffee beans, delivered. Pay cash on delivery.">
+  <title>{% block title %}KoffeeCart | Premium coffee beans, cash on delivery{% endblock %}</title>
+  <meta name="description" content="KoffeeCart: premium coffee beans, blends and brewing gear. Pay cash on delivery.">
+  <meta name="theme-color" content="#24150e">
   <link rel="icon" href="{% static 'images/favicon.ico' %}">
 
   {# Everything is served from our own static files: the Content-Security-Policy allows nothing else. #}
@@ -15,10 +16,11 @@
   <script src="{% static 'js/koffee.js' %}" defer></script>
 </head>
 <body class="d-flex flex-column min-vh-100">
+  <a class="visually-hidden-focusable" href="#main">Skip to content</a>
 
   {% include 'includes/navbar.html' %}
 
-  <main class="flex-grow-1 py-4">
+  <main id="main" class="flex-grow-1 py-3 py-lg-4">
     {% block messages %}{% include 'includes/alerts.html' %}{% endblock %}
     {% block content %}{% endblock %}
   </main>

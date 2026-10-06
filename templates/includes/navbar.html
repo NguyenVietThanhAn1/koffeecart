@@ -1,66 +1,105 @@
-<header class="site-header">
-  <nav class="navbar navbar-expand-lg navbar-dark py-3" aria-label="Main navigation">
-    <div class="container">
-      <a class="navbar-brand fs-4" href="{% url 'home' %}"><i class="fas fa-mug-hot me-2" aria-hidden="true"></i>KoffeeCart</a>
+<header class="kc-header" id="top">
+  <div class="container-xl py-2">
+    <div class="d-flex flex-wrap align-items-center gap-2 gap-lg-3">
+      <a class="kc-brand kc-nav-item flex-row align-items-center order-1" href="{% url 'home' %}">
+        <i class="fas fa-mug-hot me-2" aria-hidden="true"></i>KoffeeCart
+      </a>
 
-      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"
-              aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
-        <span class="navbar-toggler-icon"></span>
-      </button>
+      <form class="kc-search order-3 order-lg-2" action="{% url 'search' %}" method="GET" role="search">
+        <div class="input-group">
+          <select class="form-select" name="category" aria-label="Search in category">
+            <option value="">All</option>
+            {% for category in links %}
+            <option value="{{ category.slug }}"{% if request.GET.category == category.slug %} selected{% endif %}>{{ category.category_name }}</option>
+            {% endfor %}
+          </select>
+          <input type="search" class="form-control" name="keyword" placeholder="Search coffee beans, blends, gear..."
+                 value="{{ request.GET.keyword|default:'' }}" aria-label="Search products">
+          <button class="btn btn-caramel" type="submit" aria-label="Search"><i class="fas fa-search" aria-hidden="true"></i></button>
+        </div>
+      </form>
 
-      <div class="collapse navbar-collapse" id="mainNav">
-        <ul class="navbar-nav me-lg-3">
-          <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Shop</a>
-            <ul class="dropdown-menu">
-              <li><a class="dropdown-item" href="{% url 'store' %}">All products</a></li>
-              {% if links %}<li><hr class="dropdown-divider"></li>{% endif %}
-              {% for category in links %}
-              <li><a class="dropdown-item" href="{{ category.get_url }}">{{ category.category_name }}</a></li>
-              {% endfor %}
-            </ul>
-          </li>
-        </ul>
-
-        <form class="site-search flex-grow-1 my-3 my-lg-0" action="{% url 'search' %}" method="GET" role="search">
-          <div class="input-group">
-            <input type="search" class="form-control" name="keyword" placeholder="Search beans, blends, origins..."
-                   value="{{ request.GET.keyword|default:'' }}" aria-label="Search products">
-            <button class="btn btn-crema" type="submit" aria-label="Search"><i class="fas fa-search" aria-hidden="true"></i></button>
-          </div>
-        </form>
-
-        <ul class="navbar-nav ms-lg-3 align-items-lg-center gap-lg-2">
-          {% if user.is_authenticated %}
-          <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-              <i class="fas fa-user-circle me-1" aria-hidden="true"></i>{{ user.first_name|default:'Account' }}
-            </a>
-            <ul class="dropdown-menu dropdown-menu-end">
-              <li><a class="dropdown-item" href="{% url 'dashboard' %}">Dashboard</a></li>
-              <li><a class="dropdown-item" href="{% url 'my_orders' %}">My orders</a></li>
-              <li><hr class="dropdown-divider"></li>
-              <li>
-                {# Logout changes state, so it is a POST with a CSRF token, not a link. #}
-                <form action="{% url 'logout' %}" method="POST">
-                  {% csrf_token %}
-                  <button type="submit" class="dropdown-item">Log out</button>
-                </form>
-              </li>
-            </ul>
-          </li>
-          {% else %}
-          <li class="nav-item"><a class="nav-link" href="{% url 'login' %}">Sign in</a></li>
-          <li class="nav-item"><a class="nav-link" href="{% url 'register' %}">Register</a></li>
-          {% endif %}
-          <li class="nav-item">
-            <a class="nav-link cart-link px-2" href="{% url 'cart' %}" aria-label="Cart, {{ cart_count|default:0 }} items">
-              <i class="fas fa-shopping-cart fa-lg" aria-hidden="true"></i>
-              <span class="badge rounded-pill cart-badge">{{ cart_count|default:0 }}</span>
-            </a>
-          </li>
-        </ul>
+      <div class="d-flex align-items-center gap-1 ms-auto order-2 order-lg-3">
+        {% if user.is_authenticated %}
+        <div class="dropdown">
+          <button class="kc-nav-item" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <small>Hello, {{ user.first_name|default:'there' }}</small>
+            <strong>Account <i class="fas fa-caret-down" aria-hidden="true"></i></strong>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><a class="dropdown-item" href="{% url 'dashboard' %}">Your account</a></li>
+            <li><a class="dropdown-item" href="{% url 'my_orders' %}">Your orders</a></li>
+            <li><a class="dropdown-item" href="{% url 'edit_profile' %}">Edit profile</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li>
+              {# Logout changes state, so it is a POST with a CSRF token, not a link. #}
+              <form action="{% url 'logout' %}" method="POST">
+                {% csrf_token %}
+                <button type="submit" class="dropdown-item">Log out</button>
+              </form>
+            </li>
+          </ul>
+        </div>
+        {% else %}
+        <a class="kc-nav-item" href="{% url 'login' %}">
+          <small>Hello, sign in</small>
+          <strong>Account</strong>
+        </a>
+        {% endif %}
+        <a class="kc-nav-item d-none d-md-inline-flex" href="{% url 'my_orders' %}">
+          <small>Returns</small>
+          <strong>&amp; Orders</strong>
+        </a>
+        <a class="kc-nav-item kc-cart" href="{% url 'cart' %}" aria-label="Cart, {{ cart_count|default:0 }} items">
+          <i class="fas fa-shopping-cart" aria-hidden="true"></i>
+          <span class="kc-cart-count">{{ cart_count|default:0 }}</span>
+          <strong class="d-none d-sm-inline">Cart</strong>
+        </a>
       </div>
+    </div>
+  </div>
+
+  <nav class="kc-subnav" aria-label="Shop sections">
+    <div class="container-xl d-flex align-items-center py-1">
+      <button class="kc-nav-item flex-row me-1" type="button" data-bs-toggle="offcanvas" data-bs-target="#allMenu" aria-controls="allMenu">
+        <i class="fas fa-bars" aria-hidden="true"></i><strong>All</strong>
+      </button>
+      <div class="kc-subnav-links d-flex">
+        <a class="kc-nav-item kc-deals" href="{% url 'store' %}?on_sale=1"><i class="fas fa-bolt" aria-hidden="true"></i>Today's deals</a>
+        <a class="kc-nav-item" href="{% url 'store' %}?sort=sales">Best sellers</a>
+        <a class="kc-nav-item" href="{% url 'store' %}?sort=newest">New arrivals</a>
+        {% for category in links %}
+        <a class="kc-nav-item" href="{{ category.get_url }}">{{ category.category_name }}</a>
+        {% endfor %}
+      </div>
+      <span class="ms-auto ps-3 small d-none d-lg-inline text-nowrap kc-deals"><i class="fas fa-money-bill-wave me-1" aria-hidden="true"></i>Cash on delivery</span>
     </div>
   </nav>
 </header>
+
+<div class="offcanvas offcanvas-start kc-offcanvas" tabindex="-1" id="allMenu" aria-labelledby="allMenuLabel">
+  <div class="offcanvas-header">
+    <h2 class="offcanvas-title h5 mb-0" id="allMenuLabel"><i class="fas fa-user-circle me-2" aria-hidden="true"></i>{% if user.is_authenticated %}Hello, {{ user.first_name }}{% else %}Hello, sign in{% endif %}</h2>
+    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+  </div>
+  <div class="offcanvas-body p-0">
+    <h3 class="h6 fw-bold px-3 pt-3">Shop by category</h3>
+    <div class="list-group list-group-flush mb-3">
+      <a class="list-group-item list-group-item-action" href="{% url 'store' %}">All products</a>
+      {% for category in links %}
+      <a class="list-group-item list-group-item-action" href="{{ category.get_url }}">{{ category.category_name }}</a>
+      {% endfor %}
+    </div>
+    <h3 class="h6 fw-bold px-3">Help &amp; settings</h3>
+    <div class="list-group list-group-flush">
+      {% if user.is_authenticated %}
+      <a class="list-group-item list-group-item-action" href="{% url 'dashboard' %}">Your account</a>
+      <a class="list-group-item list-group-item-action" href="{% url 'my_orders' %}">Your orders</a>
+      {% else %}
+      <a class="list-group-item list-group-item-action" href="{% url 'login' %}">Sign in</a>
+      <a class="list-group-item list-group-item-action" href="{% url 'register' %}">Create an account</a>
+      {% endif %}
+      <a class="list-group-item list-group-item-action" href="{% url 'cart' %}">Cart</a>
+    </div>
+  </div>
+</div>

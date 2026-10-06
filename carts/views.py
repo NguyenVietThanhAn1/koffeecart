@@ -105,6 +105,18 @@ def _variations_from_post(request, product):
     return variations
 
 
+MAX_QUANTITY_PER_ADD = 99
+
+
+def _requested_quantity(request):
+    """The "quantity" field of the product page (1 when missing or not a sensible number)."""
+    try:
+        quantity = int(request.POST.get('quantity', 1))
+    except (TypeError, ValueError):
+        return 1
+    return min(max(quantity, 1), MAX_QUANTITY_PER_ADD)
+
+
 @require_POST
 def add_cart(request, product_id):
     product = get_object_or_404(Product, id=product_id)
@@ -113,23 +125,31 @@ def add_cart(request, product_id):
 
     # The cart may not hold more of a product than is in stock (all its variations together).
     in_cart = lines.aggregate(n=Sum('quantity'))['n'] or 0
-    if in_cart >= product.stock:
+    available = product.stock - in_cart
+    if available <= 0:
         if product.stock <= 0:
             messages.error(request, f'Sorry, "{product.product_name}" is out of stock.')
         else:
             messages.error(request, f'Sorry, only {product.stock} of "{product.product_name}" in stock.')
         return redirect('cart' if in_cart else product.get_url())
 
+    quantity = _requested_quantity(request)
+    if quantity > available:
+        quantity = available
+        messages.warning(request, f'Only {available} more "{product.product_name}" available, so {available} added.')
+
     variations = _variations_from_post(request, product)
     key = (product.id, frozenset(v.id for v in variations))
     line = next((line for line in lines if _line_key(line) == key), None)
     if line is not None:
-        line.quantity += 1
+        line.quantity += quantity
         line.save()
     else:
-        line = CartItem.objects.create(product=product, quantity=1, **owner)
+        line = CartItem.objects.create(product=product, quantity=quantity, **owner)
         line.variations.set(variations)
-    return redirect('cart')
+
+    # "Buy now" goes straight to checkout (which asks guests to sign in first).
+    return redirect('checkout' if request.POST.get('buy_now') else 'cart')
 
 
 @require_POST

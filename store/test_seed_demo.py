@@ -7,6 +7,8 @@ from PIL import Image
 
 from accounts.models import Account
 from category.models import Category
+from orders.models import OrderProduct
+from store.management.commands.seed_demo import PRODUCTS, SALES
 from store.models import Product, ReviewRating, Variation
 
 
@@ -25,7 +27,7 @@ def _seed():
 def test_seed_creates_a_browsable_shop(db, media):
     _seed()
     assert Category.objects.count() == 4
-    assert Product.objects.count() == 10
+    assert Product.objects.count() == len(PRODUCTS)
     assert Product.objects.filter(stock=0).exists()          # one "sold out" product to show
     assert Variation.objects.filter(variation_category='size').exists()
     assert ReviewRating.objects.exists()
@@ -72,3 +74,26 @@ def test_seeded_shop_pages_render(client, db, media):
     assert client.get('/').status_code == 200
     assert client.get(product.get_url()).status_code == 200
     assert b'Sold out' in client.get('/store/').content
+
+
+def test_seed_has_sales_and_discounts(db, media):
+    _seed()
+    listed = {p.slug: p for p in Product.objects.for_listing()}
+    robusta = listed['vietnam-robusta-dak-lak']
+    assert robusta.discount_percent == 17                       # 12.50 instead of 15.00
+    assert robusta.sold == SALES['vietnam-robusta-dak-lak'] + 2  # bulk sale + its two reviewers
+    assert listed['brazil-santos'].sold == 0
+
+
+def test_every_demo_review_is_by_a_buyer(db, media):
+    _seed()
+    for review in ReviewRating.objects.all():
+        assert OrderProduct.objects.filter(user=review.user, product=review.product, ordered=True).exists()
+
+
+def test_seed_orders_are_not_duplicated(db, media):
+    from orders.models import Order
+    _seed()
+    count = Order.objects.count()
+    _seed()
+    assert Order.objects.count() == count
