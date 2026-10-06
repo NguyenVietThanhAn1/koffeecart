@@ -11,9 +11,8 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
-from decouple import config
-import os
-import sys
+from decouple import Csv, config
+from django.contrib.messages import constants as messages
  
 BASE_DIR = Path(__file__).resolve(strict=True).parent.parent
 
@@ -22,16 +21,26 @@ SECRET_KEY = config('SECRET_KEY')
 DEBUG = config('DEBUG', default=False, cast=bool)
 
  
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost').split(',')
+# Csv() strips spaces and drops empty items, so "localhost, 1.2.3.4" works too.
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost', cast=Csv())
 
-CSRF_TRUSTED_ORIGINS = [
-    "https://koffeecart.onrender.com",
-]
+CSRF_TRUSTED_ORIGINS = config('CSRF_TRUSTED_ORIGINS', default='http://localhost', cast=Csv())
 
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
+# Only enable behind HTTPS; over plain HTTP the browser drops these cookies
+# and login/CSRF fails.
+SESSION_COOKIE_SECURE = config('SESSION_COOKIE_SECURE', default=False, cast=bool)
+CSRF_COOKIE_SECURE = config('CSRF_COOKIE_SECURE', default=False, cast=bool)
+
+# HTTPS hardening. All off by default so the plain-HTTP dev/VM setup keeps working;
+# turn them on once the site is served over TLS (see docs/CI_CD.md).
+SECURE_SSL_REDIRECT = config('SECURE_SSL_REDIRECT', default=False, cast=bool)
+SECURE_HSTS_SECONDS = config('SECURE_HSTS_SECONDS', default=0, cast=int)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = config('SECURE_HSTS_INCLUDE_SUBDOMAINS', default=False, cast=bool)
+SECURE_HSTS_PRELOAD = config('SECURE_HSTS_PRELOAD', default=False, cast=bool)
+# The container healthcheck calls /health/ over plain HTTP, so it must not be redirected.
+SECURE_REDIRECT_EXEMPT = [r'^health/$']
 
 # Application definition
 
@@ -42,6 +51,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.sitemaps',
     'category',
     'accounts',
     'store',
@@ -51,18 +61,19 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'koffeecart.middleware.SecurityHeadersMiddleware',  # CSP + Permissions-Policy
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'django_session_timeout.middleware.SessionTimeoutMiddleware',
 ]
 
-SESSION_EXPIRE_SECONDS = 3600  # 1 hour
-SESSION_EXPIRE_AFTER_LAST_ACTIVITY = True
-SESSION_TIMEOUT_REDIRECT = '/accounts/login/'
+# Log users out after 1 hour without activity. Saving the session on every request moves
+# the expiry forward each time (built into Django, so no extra package is needed).
+SESSION_COOKIE_AGE = 3600
+SESSION_SAVE_EVERY_REQUEST = True
 
 ROOT_URLCONF = 'koffeecart.urls'
 
@@ -97,6 +108,10 @@ DATABASES = {
         "PASSWORD": config('DB_PASSWORD', default=''),
         "HOST": config('DB_HOST', default=''),
         "PORT": config('DB_PORT', default=''),
+        # Reuse a connection for up to 60 s instead of opening one per request; Django checks
+        # it is still alive before reusing it (e.g. after a database restart).
+        "CONN_MAX_AGE": config('DB_CONN_MAX_AGE', default=60, cast=int),
+        "CONN_HEALTH_CHECKS": True,
     }
 }
 
@@ -127,8 +142,6 @@ LANGUAGE_CODE = 'en-us'
 
 TIME_ZONE = 'UTC'
 
-USE_L10N = True
-
 USE_I18N = True
 
 USE_TZ = True
@@ -138,7 +151,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
-STATIC_ROOT = BASE_DIR / 'static'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [
     BASE_DIR / 'koffeecart/static',
 ]
@@ -151,38 +164,30 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-from django.contrib.messages import constants as messages
 MESSAGE_TAGS = {
     messages.ERROR: 'danger',
 }
 
 # SMTP configuration
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 587
-EMAIL_HOST_USER = 'kingofanglels@gmail.com'
-EMAIL_HOST_PASSWORD = 'phpc sgam skti eael'
-EMAIL_USE_TLS = True
+EMAIL_BACKEND = config(
+    'EMAIL_BACKEND',
+    default='django.core.mail.backends.console.EmailBackend',
+)
+EMAIL_HOST = config('EMAIL_HOST', default='smtp.gmail.com')
+EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
+EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
+EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
+EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
+# Sender of account and order emails. Gmail SMTP requires it to be the authenticated account.
+# "or": an empty DEFAULT_FROM_EMAIL= line in .env must also fall back (decouple returns '').
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='') or (
+    f'KoffeeCart <{EMAIL_HOST_USER}>' if EMAIL_HOST_USER else 'KoffeeCart <noreply@koffeecart.local>'
+)
 
-if 'collectstatic' in sys.argv:
-    DATABASES = {
-            'default': {
-                'ENGINE': 'django.db.backends.sqlite3',
-                'NAME': ':MEMORY:',
-            }
-    }
+# Django already defaults to SECURE_CONTENT_TYPE_NOSNIFF = True and X_FRAME_OPTIONS = 'DENY'
+# (SECURE_BROWSER_XSS_FILTER was removed in Django 4.0), so nothing to set here.
 
-if not DEBUG:
-    SECURE_BROWSER_XSS_FILTER = True
-    SECURE_CONTENT_TYPE_NOSNIFF = True
-    X_FRAME_OPTIONS = 'DENY'
-
-    CSRF_TRUSTED_ORIGINS = config(
-        'CSRF_TRUSTED_ORIGINS',
-        default='http://localhost'
-    ).split(',')
-LOG_DIR = os.path.join(BASE_DIR, "logs")
-os.makedirs(LOG_DIR, exist_ok=True)
-
+# Log to stdout only; Docker collects it (docker compose logs).
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -197,23 +202,16 @@ LOGGING = {
             'class': 'logging.StreamHandler',
             'formatter': 'verbose',
         },
-        'file': {
-            'class': 'logging.FileHandler',
-            'filename': '/app/logs/django.log',
-            'formatter': 'verbose',
-            'filename': os.path.join(LOG_DIR, 'django.log'),
-        },
     },
     'root': {
-        'handlers': ['console', 'file'],
+        'handlers': ['console'],
         'level': 'INFO',
     },
     'loggers': {
         'django': {
-            'handlers': ['console', 'file'],
+            'handlers': ['console'],
             'level': 'INFO',
             'propagate': False,
         },
     },
 }
-

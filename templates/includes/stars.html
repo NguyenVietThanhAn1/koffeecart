@@ -1,0 +1,1 @@
+<span class="stars" role="img" aria-label="Rated {{ value|floatformat:1 }} out of 5">{% for icon in icons %}<i class="{{ icon }}" aria-hidden="true"></i>{% endfor %}</span>{% if count is not None %} <span class="text-body-secondary small">({{ count }})</span>{% endif %}

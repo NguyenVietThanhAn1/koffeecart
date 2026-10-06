@@ -1,216 +1,198 @@
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.db import transaction
+from django.db.models import Sum
 from django.shortcuts import render, redirect, get_object_or_404
+from django.views.decorators.http import require_POST
+
+from accounts.models import UserProfile
 from store.models import Product, Variation
 from .models import Cart, CartItem
-from django.core.exceptions import ObjectDoesNotExist
-from django.contrib.auth.decorators import login_required
-
-# Create your views here.
-from django.http import HttpResponse
-
-def _cart_id(request):
-    cart = request.session.session_key
-    if not cart:
-        cart = request.session.create()
-    return cart
-
-def add_cart(request, product_id):
-    current_user = request.user
-    product = Product.objects.get(id=product_id) #get the product
-    # If the user is authenticated
-    if current_user.is_authenticated:
-        product_variation = []
-        if request.method == 'POST':
-            for item in request.POST:
-                key = item
-                value = request.POST[key]
-
-                try:
-                    variation = Variation.objects.get(product=product, variation_category__iexact=key, variation_value__iexact=value)
-                    product_variation.append(variation)
-                except:
-                    pass
+from .pricing import calculate_totals
 
 
-        is_cart_item_exists = CartItem.objects.filter(product=product, user=current_user).exists()
-        if is_cart_item_exists:
-            cart_item = CartItem.objects.filter(product=product, user=current_user)
-            ex_var_list = []
-            id = []
-            for item in cart_item:
-                existing_variation = item.variations.all()
-                ex_var_list.append(list(existing_variation))
-                id.append(item.id)
+def _cart_id(request, create=False):
+    """The guest cart id, which is the session key.
 
-            if product_variation in ex_var_list:
-                # increase the cart item quantity
-                index = ex_var_list.index(product_variation)
-                item_id = id[index]
-                item = CartItem.objects.get(product=product, id=item_id)
-                item.quantity += 1
-                item.save()
+    Only adding to the cart creates a session (create=True). Merely looking at pages must
+    not: otherwise every anonymous visitor and every crawler request writes a session row.
+    session.create() returns None; the new key is on the session afterwards.
+    """
+    if create and not request.session.session_key:
+        request.session.create()
+    return request.session.session_key
 
+
+def _line_key(item):
+    """Two cart lines are "the same" when product and set of variations are equal (order does not matter)."""
+    return item.product_id, frozenset(v.id for v in item.variations.all())
+
+
+def _owner(request, create=False):
+    """Filter kwargs for the current cart: the user's lines, or the guest cart's lines.
+
+    Returns None for a guest who has no cart yet (and create is False).
+    """
+    if request.user.is_authenticated:
+        return {'user': request.user}
+    cart_id = _cart_id(request, create=create)
+    if not cart_id:
+        return None
+    if create:
+        # filter().first(): an old race may have left two Cart rows with the same id
+        cart = Cart.objects.filter(cart_id=cart_id).first() or Cart.objects.create(cart_id=cart_id)
+        return {'cart': cart}
+    return {'cart__cart_id': cart_id}
+
+
+def _cart_items(request):
+    """Active cart lines with everything the templates show, in a fixed number of queries."""
+    owner = _owner(request)
+    if owner is None:
+        return CartItem.objects.none()
+    return (CartItem.objects.filter(is_active=True, **owner)
+            .select_related('product__category')   # product.get_url() needs the category slug
+            .prefetch_related('variations')
+            .order_by('id'))
+
+
+def merge_guest_cart(cart_id, user):
+    """Move the guest cart into the user's cart when they log in.
+
+    A guest line that matches one of the user's lines adds its quantity to it;
+    any other guest line simply becomes the user's.
+    """
+    if not cart_id:
+        return
+    guest_lines = CartItem.objects.filter(cart__cart_id=cart_id, user__isnull=True).prefetch_related('variations')
+    with transaction.atomic():
+        user_lines = {
+            _line_key(line): line
+            for line in CartItem.objects.filter(user=user).prefetch_related('variations')
+        }
+        for guest in guest_lines:
+            key = _line_key(guest)
+            if key in user_lines:
+                mine = user_lines[key]
+                mine.quantity += guest.quantity
+                mine.save()
+                guest.delete()
             else:
-                item = CartItem.objects.create(product=product, quantity=1, user=current_user)
-                if len(product_variation) > 0:
-                    item.variations.clear()
-                    item.variations.add(*product_variation)
-                item.save()
-        else:
-            cart_item = CartItem.objects.create(
-                product = product,
-                quantity = 1,
-                user = current_user,
-            )
-            if len(product_variation) > 0:
-                cart_item.variations.clear()
-                cart_item.variations.add(*product_variation)
-            cart_item.save()
-        return redirect('cart')
-    # If the user is not authenticated
-    else:
-        product_variation = []
-        if request.method == 'POST':
-            for item in request.POST:
-                key = item
-                value = request.POST[key]
-
-                try:
-                    variation = Variation.objects.get(product=product, variation_category__iexact=key, variation_value__iexact=value)
-                    product_variation.append(variation)
-                except:
-                    pass
+                guest.user = user
+                guest.save()
+                user_lines[key] = guest
 
 
-        try:
-            cart = Cart.objects.get(cart_id=_cart_id(request)) # get the cart using the cart_id present in the session
-        except Cart.DoesNotExist:
-            cart = Cart.objects.create(
-                cart_id = _cart_id(request)
-            )
-        cart.save()
-
-        is_cart_item_exists = CartItem.objects.filter(product=product, cart=cart).exists()
-        if is_cart_item_exists:
-            cart_item = CartItem.objects.filter(product=product, cart=cart)
-            # existing_variations -> database
-            # current variation -> product_variation
-            # item_id -> database
-            ex_var_list = []
-            id = []
-            for item in cart_item:
-                existing_variation = item.variations.all()
-                ex_var_list.append(list(existing_variation))
-                id.append(item.id)
-
-            print(ex_var_list)
-
-            if product_variation in ex_var_list:
-                # increase the cart item quantity
-                index = ex_var_list.index(product_variation)
-                item_id = id[index]
-                item = CartItem.objects.get(product=product, id=item_id)
-                item.quantity += 1
-                item.save()
-
-            else:
-                item = CartItem.objects.create(product=product, quantity=1, cart=cart)
-                if len(product_variation) > 0:
-                    item.variations.clear()
-                    item.variations.add(*product_variation)
-                item.save()
-        else:
-            cart_item = CartItem.objects.create(
-                product = product,
-                quantity = 1,
-                cart = cart,
-            )
-            if len(product_variation) > 0:
-                cart_item.variations.clear()
-                cart_item.variations.add(*product_variation)
-            cart_item.save()
-        return redirect('cart')
+def _find_cart_item(request, product_id, cart_item_id):
+    """The cart line if it belongs to the current user or guest cart, otherwise None."""
+    owner = _owner(request)
+    if owner is None:
+        return None
+    return CartItem.objects.filter(product_id=product_id, id=cart_item_id, **owner).first()
 
 
-def remove_cart(request, product_id, cart_item_id):
+def _variations_from_post(request, product):
+    """Variations named by the POSTed fields, e.g. color=Red.
 
-    product = get_object_or_404(Product, id=product_id)
+    Fields that are not variations of this product (csrfmiddlewaretoken, ...) are ignored.
+    """
+    variations = []
+    for key, value in request.POST.items():
+        variation = Variation.objects.filter(
+            product=product, variation_category__iexact=key, variation_value__iexact=value
+        ).first()
+        if variation is not None:
+            variations.append(variation)
+    return variations
+
+
+MAX_QUANTITY_PER_ADD = 99
+
+
+def _requested_quantity(request):
+    """The "quantity" field of the product page (1 when missing or not a sensible number)."""
     try:
-        if request.user.is_authenticated:
-            cart_item = CartItem.objects.get(product=product, user=request.user, id=cart_item_id)
+        quantity = int(request.POST.get('quantity', 1))
+    except (TypeError, ValueError):
+        return 1
+    return min(max(quantity, 1), MAX_QUANTITY_PER_ADD)
+
+
+@require_POST
+def add_cart(request, product_id):
+    product = get_object_or_404(Product, id=product_id, is_available=True)  # hidden products cannot be added
+    owner = _owner(request, create=True)
+    lines = CartItem.objects.filter(product=product, **owner).prefetch_related('variations')
+
+    # The cart may not hold more of a product than is in stock (all its variations together).
+    in_cart = lines.aggregate(n=Sum('quantity'))['n'] or 0
+    available = product.stock - in_cart
+    if available <= 0:
+        if product.stock <= 0:
+            messages.error(request, f'Sorry, "{product.product_name}" is out of stock.')
         else:
-            cart = Cart.objects.get(cart_id=_cart_id(request))
-            cart_item = CartItem.objects.get(product=product, cart=cart, id=cart_item_id)
+            messages.error(request, f'Sorry, only {product.stock} of "{product.product_name}" in stock.')
+        return redirect('cart' if in_cart else product.get_url())
+
+    quantity = _requested_quantity(request)
+    if quantity > available:
+        quantity = available
+        messages.warning(request, f'Only {available} more "{product.product_name}" available, so {available} added.')
+
+    variations = _variations_from_post(request, product)
+    key = (product.id, frozenset(v.id for v in variations))
+    line = next((line for line in lines if _line_key(line) == key), None)
+    if line is not None:
+        line.quantity += quantity
+        line.save()
+    else:
+        line = CartItem.objects.create(product=product, quantity=quantity, **owner)
+        line.variations.set(variations)
+
+    # "Buy now" goes straight to checkout (which asks guests to sign in first).
+    return redirect('checkout' if request.POST.get('buy_now') else 'cart')
+
+
+@require_POST
+def remove_cart(request, product_id, cart_item_id):
+    # A missing line (already removed, or someone else's) is a no-op: the cart is already as asked.
+    cart_item = _find_cart_item(request, product_id, cart_item_id)
+    if cart_item is not None:
         if cart_item.quantity > 1:
             cart_item.quantity -= 1
             cart_item.save()
         else:
             cart_item.delete()
-    except:
-        pass
     return redirect('cart')
 
 
+@require_POST
 def remove_cart_item(request, product_id, cart_item_id):
-    product = get_object_or_404(Product, id=product_id)
-    if request.user.is_authenticated:
-        cart_item = CartItem.objects.get(product=product, user=request.user, id=cart_item_id)
-    else:
-        cart = Cart.objects.get(cart_id=_cart_id(request))
-        cart_item = CartItem.objects.get(product=product, cart=cart, id=cart_item_id)
-    cart_item.delete()
+    cart_item = _find_cart_item(request, product_id, cart_item_id)
+    if cart_item is not None:
+        cart_item.delete()
     return redirect('cart')
 
 
-def cart(request, total=0, quantity=0, cart_items=None):
-    try:
-        tax = 0
-        grand_total = 0
-        if request.user.is_authenticated:
-            cart_items = CartItem.objects.filter(user=request.user, is_active=True)
-        else:
-            cart = Cart.objects.get(cart_id=_cart_id(request))
-            cart_items = CartItem.objects.filter(cart=cart, is_active=True)
-        for cart_item in cart_items:
-            total += (cart_item.product.price * cart_item.quantity)
-            quantity += cart_item.quantity
-        tax = (2 * total)/100
-        grand_total = total + tax
-    except ObjectDoesNotExist:
-        pass #just ignore
-
-    context = {
+def _cart_page(request, template, **extra):
+    cart_items = _cart_items(request)
+    total, quantity, tax, grand_total = calculate_totals(cart_items)
+    return render(request, template, {
+        'cart_items': cart_items,
         'total': total,
         'quantity': quantity,
-        'cart_items': cart_items,
-        'tax'       : tax,
+        'tax': tax,
         'grand_total': grand_total,
-    }
-    return render(request, 'store/cart.html', context)
+        **extra,
+    })
+
+
+def cart(request):
+    return _cart_page(request, 'store/cart.html')
 
 
 @login_required(login_url='login')
-def checkout(request, total=0, quantity=0, cart_items=None):
-    try:
-        tax = 0
-        grand_total = 0
-        if request.user.is_authenticated:
-            cart_items = CartItem.objects.filter(user=request.user, is_active=True)
-        else:
-            cart = Cart.objects.get(cart_id=_cart_id(request))
-            cart_items = CartItem.objects.filter(cart=cart, is_active=True)
-        for cart_item in cart_items:
-            total += (cart_item.product.price * cart_item.quantity)
-            quantity += cart_item.quantity
-        tax = (2 * total)/100
-        grand_total = total + tax
-    except ObjectDoesNotExist:
-        pass #just ignore
-
-    context = {
-        'total': total,
-        'quantity': quantity,
-        'cart_items': cart_items,
-        'tax'       : tax,
-        'grand_total': grand_total,
-    }
-    return render(request, 'store/checkout.html', context)
+def checkout(request):
+    # The address saved in the profile pre-fills the delivery form (Shopee's "default address").
+    profile = UserProfile.objects.filter(user=request.user).first()
+    return _cart_page(request, 'store/checkout.html', profile=profile)

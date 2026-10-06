@@ -1,0 +1,23 @@
+{% load static %}<!DOCTYPE html>
+{% comment %}
+Standalone on purpose: Django renders 500.html without context processors, and the error
+may be the database itself, so this page must not touch the menu, the cart or the user.
+{% endcomment %}
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Something went wrong | KoffeeCart</title>
+  <link rel="icon" href="{% static 'images/favicon.ico' %}">
+  <link rel="stylesheet" href="{% static 'vendor/bootstrap-5.3.8/bootstrap.min.css' %}">
+  <link rel="stylesheet" href="{% static 'css/koffee.css' %}">
+</head>
+<body class="d-flex min-vh-100 align-items-center">
+  <div class="container text-center py-5">
+    <p class="error-code">500</p>
+    <h1 class="h3">Something went wrong</h1>
+    <p class="text-body-secondary">We spilled the coffee. The error has been logged; please try again in a moment.</p>
+    <a href="/" class="btn btn-primary">Back to the shop</a>
+  </div>
+</body>
+</html>

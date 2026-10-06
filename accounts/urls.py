@@ -17,7 +17,9 @@ urlpatterns = [
     path('my_orders/', views.my_orders, name='my_orders'),
     path('edit_profile/', views.edit_profile, name='edit_profile'),
     path('change_password/', views.change_password, name='change_password'),
-    path('order_detail/<int:order_id>/', views.order_detail, name='order_detail'),
+    # order numbers are strings (e.g. 202610061, DEMO0001), not only digits
+    path('order_detail/<str:order_id>/', views.order_detail, name='order_detail'),
+    path('order_detail/<str:order_id>/cancel/', views.cancel_order, name='cancel_order'),
 
 
 ]

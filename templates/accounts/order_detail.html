@@ -1,108 +1,68 @@
 {% extends 'base.html' %}
-{% load static %}
+
+{% block title %}Invoice #{{ order.order_number }} | KoffeeCart{% endblock %}
 
 {% block content %}
-
-
-<div class="container" style="margin: 0 auto;width: 50%;padding: 50px;background: #f1f1f1;margin-top: 50px;margin-bottom: 50px;">
-    <div class="row invoice row-printable">
-        <div class="col-md-12">
-            <!-- col-lg-12 start here -->
-            <div class="panel panel-default plain" id="dash_0">
-                <!-- Start .panel -->
-                <div class="panel-body p30">
-                    <div class="row">
-                        <!-- Start .row -->
-                        <div class="col-lg-6">
-                            <!-- col-lg-6 start here -->
-                            <div class="invoice-logo"><img src="{% static '/images/logo.png' %}" alt="Invoice logo" style="max-height: 40px;"></div>
-                        </div>
-                        <!-- col-lg-6 end here -->
-                        <div class="col-lg-6">
-                            <!-- col-lg-6 start here -->
-                            <div class="invoice-from">
-                                <ul class="list-unstyled text-right">
-                                    <li><strong>Invoiced To</strong></li>
-                                    <li>{{order.full_name}}</li>
-                                    <li>{{order.full_address}}</li>
-                                    <li>{{order.city}}, {{order.state}}</li>
-                                    <li>{{order.country}}</li>
-                                </ul>
-                            </div>
-                        </div>
-                        <!-- col-lg-6 end here -->
-                        <div class="col-lg-12">
-                            <!-- col-lg-12 start here -->
-                            <div class="invoice-details mt25">
-                                <div class="well">
-                                    <ul class="list-unstyled mb0">
-                                        <li><strong>Order</strong> #{{order.order_number}}</li>
-                                        <li><strong>Transaction ID</strong> {{order.payment.payment_id}}</li>
-                                        <li><strong>Order Date:</strong> {{order.created_at}}</li>
-                                        <li><strong>Status:</strong> {{order.payment.status}}</li>
-                                    </ul>
-                                </div>
-                            </div>
-
-                            <div class="invoice-items">
-                                <div class="table-responsive" style="overflow: hidden; outline: none;" tabindex="0">
-                                    <table class="table table-bordered">
-                                        <thead>
-                                            <tr>
-                                                <th class="per70 text-center">Products</th>
-                                                <th class="per5 text-center">Qty</th>
-                                                <th class="per25 text-center">Total</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                          {% for item in order_detail %}
-                                            <tr>
-                                                <td>{{item.product.product_name}}
-                                                  <p class="text-muted small">
-                                          					{% if item.variations.all %}
-                                          						{% for i in item.variations.all %}
-                                          							{{ i.variation_category | capfirst }} : {{ i.variation_value | capfirst }} <br>
-                                          						{% endfor %}
-                                          					{% endif %}
-                                          				</p>
-                                                </td>
-                                                <td class="text-center">{{item.quantity}}</td>
-                                                <td class="text-center">${{item.product_price}} USD</td>
-                                            </tr>
-                                          {% endfor %}
-                                        </tbody>
-                                        <tfoot>
-                                            <tr>
-                                                <th colspan="2" class="text-right">Sub Total:</th>
-                                                <th class="text-center">${{subtotal}} USD</th>
-                                            </tr>
-                                            <tr>
-                                                <th colspan="2" class="text-right">Tax:</th>
-                                                <th class="text-center">${{order.tax}} USD</th>
-                                            </tr>
-
-                                            <tr>
-                                                <th colspan="2" class="text-right">Grand Total:</th>
-                                                <th class="text-center">${{order.order_total}} USD</th>
-                                            </tr>
-                                        </tfoot>
-                                    </table>
-                                </div>
-                            </div>
-                            <div class="invoice-footer mt25">
-                                <p class="text-center">Thank you for shopping with us!</p>
-                            </div>
-                        </div>
-                        <!-- col-lg-12 end here -->
-                    </div>
-                    <!-- End .row -->
-                </div>
-            </div>
-            <!-- End .panel -->
+<div class="container">
+  <div class="card mx-auto auth-card-wide">
+    <div class="card-body p-4">
+      <div class="d-flex justify-content-between align-items-start mb-4">
+        <div>
+          <span class="fs-4 fw-bold"><i class="fas fa-mug-hot me-2" aria-hidden="true"></i>KoffeeCart</span>
+          <p class="small text-body-secondary mb-0">141 Pham Van Dong, Cau Giay, Ha Noi</p>
         </div>
-        <!-- col-lg-12 end here -->
-    </div>
-    </div>
+        <div class="text-end">
+          <h1 class="h5 mb-1">Invoice</h1>
+          <p class="small mb-0">Order #{{ order.order_number }}</p>
+          <p class="small mb-0">{{ order.created_at|date:'M j, Y' }}</p>
+        </div>
+      </div>
 
+      {# Shopee-style progress: Placed -> Accepted -> Completed #}
+      {% if order.status == 'Cancelled' %}
+      <div class="alert alert-secondary small"><i class="fas fa-ban me-1" aria-hidden="true"></i>This order was cancelled. The items went back in stock.</div>
+      {% else %}
+      <ol class="kc-steps mb-4" aria-label="Order progress">
+        <li class="done">Placed</li>
+        <li class="{% if order.status == 'Accepted' or order.status == 'Completed' %}done{% endif %}">Accepted</li>
+        <li class="{% if order.status == 'Completed' %}done{% endif %}">Delivered &amp; paid</li>
+      </ol>
+      {% endif %}
 
+      <div class="row mb-4 small">
+        <div class="col-sm-6">
+          <strong>Deliver to</strong>
+          <address class="mb-0">
+            {{ order.full_name }}<br>
+            {{ order.full_address }}<br>
+            {{ order.city }}, {{ order.state }}, {{ order.country }}
+          </address>
+        </div>
+        <div class="col-sm-6 text-sm-end">
+          <strong>Payment</strong><br>
+          {% if order.payment.payment_method == 'COD' %}Cash on delivery{% else %}{{ order.payment.payment_method }}{% endif %}<br>
+          Transaction {{ order.payment.payment_id }}<br>
+          Payment status: {{ order.payment.status }}<br>
+          Order status: {% include 'includes/order_status.html' with status=order.status %}
+        </div>
+      </div>
+
+      {% include 'includes/line_items.html' with items=order_detail %}
+      <hr>
+      {% include 'includes/totals.html' with total=subtotal tax=order.tax grand_total=order.order_total %}
+
+      <p class="text-center text-body-secondary small mt-4 mb-0">Thank you for shopping with us!</p>
+    </div>
+  </div>
+  <div class="text-center mt-3 no-print">
+    <button type="button" class="btn btn-outline-primary" data-print><i class="fas fa-print me-2" aria-hidden="true"></i>Print</button>
+    <a href="{% url 'my_orders' %}" class="btn btn-link">Back to my orders</a>
+    {% if order.status == 'New' %}
+    <form action="{% url 'cancel_order' order.order_number %}" method="POST" class="d-inline">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-link text-danger">Cancel order</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
 {% endblock %}

@@ -1,0 +1,1 @@
+<span class="badge {% if status == 'New' %}text-bg-warning{% elif status == 'Accepted' %}text-bg-info{% elif status == 'Completed' %}text-bg-success{% else %}text-bg-secondary{% endif %}">{% if status == 'New' %}Placed{% else %}{{ status }}{% endif %}</span>

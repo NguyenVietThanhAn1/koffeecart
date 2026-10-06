@@ -1,152 +1,192 @@
 from django.shortcuts import render, redirect
-from django.http import HttpResponse, JsonResponse
+from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_POST
+from django.http import HttpResponseBadRequest
+from django.contrib import messages
+from django.db import transaction
+from django.urls import reverse
+from django.utils import timezone
 from carts.models import CartItem
+from carts.pricing import calculate_totals
 from .forms import OrderForm
-import datetime
 from .models import Order, Payment, OrderProduct
-import json
+import logging
+import uuid
 from store.models import Product
 from django.core.mail import EmailMessage
 from django.template.loader import render_to_string
 
+logger = logging.getLogger(__name__)
 
+
+class OutOfStock(Exception):
+    pass
+
+
+class Unavailable(Exception):
+    """A product in the cart was hidden from the shop after it was added."""
+
+
+class CartChanged(Exception):
+    """The cart no longer matches the total saved on the order at place_order."""
+
+
+@login_required(login_url='login')
+@require_POST
 def payments(request):
-    body = json.loads(request.body)
-    order = Order.objects.get(user=request.user, is_ordered=False, order_number=body['orderID'])
+    """Cash on delivery: turn a pending order into a placed order.
 
-    # Store transaction details inside Payment model
-    payment = Payment(
-        user = request.user,
-        payment_id = body['transID'],
-        payment_method = body['payment_method'],
-        amount_paid = order.order_total,
-        status = body['status'],
-    )
-    payment.save()
+    Nothing that decides money or status comes from the client. The only input is
+    the order number; amount, method, status and transaction id are set here.
+    """
+    order_number = request.POST.get('orderID', '').strip()
+    if not order_number:
+        return HttpResponseBadRequest('Missing orderID')
 
-    order.payment = payment
-    order.is_ordered = True
-    order.save()
+    try:
+        with transaction.atomic():
+            # Lock the order row so a double submit cannot place it twice.
+            order = Order.objects.select_for_update().filter(
+                user=request.user, is_ordered=False, order_number=order_number
+            ).first()
+            if order is None:
+                return HttpResponseBadRequest('Order not found')
 
-    # Move the cart items to Order Product table
-    cart_items = CartItem.objects.filter(user=request.user)
+            cart_items = list(CartItem.objects.filter(user=request.user).select_related('product'))
+            if not cart_items:
+                return HttpResponseBadRequest('Cart is empty')
 
-    for item in cart_items:
-        orderproduct = OrderProduct()
-        orderproduct.order_id = order.id
-        orderproduct.payment = payment
-        orderproduct.user_id = request.user.id
-        orderproduct.product_id = item.product_id
-        orderproduct.quantity = item.quantity
-        orderproduct.product_price = item.product.price
-        orderproduct.ordered = True
-        orderproduct.save()
+            # The user confirmed the total shown on the payment page. If the cart changed
+            # since then (another tab, price change), that total is wrong: do not place it.
+            _, _, _, grand_total = calculate_totals(cart_items)
+            if grand_total != order.order_total:
+                raise CartChanged
 
-        cart_item = CartItem.objects.get(id=item.id)
-        product_variation = cart_item.variations.all()
-        orderproduct = OrderProduct.objects.get(id=orderproduct.id)
-        orderproduct.variations.set(product_variation)
-        orderproduct.save()
+            # Lock the products, then check stock before changing anything.
+            products = Product.objects.select_for_update().in_bulk(
+                [item.product_id for item in cart_items])
+            needed = {}
+            for item in cart_items:
+                needed[item.product_id] = needed.get(item.product_id, 0) + item.quantity
+            for product_id, qty in needed.items():
+                if not products[product_id].is_available:
+                    raise Unavailable(products[product_id].product_name)
+                if products[product_id].stock < qty:
+                    raise OutOfStock(products[product_id].product_name)
 
+            payment = Payment.objects.create(
+                user=request.user,
+                payment_id='COD-' + uuid.uuid4().hex[:12].upper(),
+                payment_method='COD',
+                amount_paid=order.order_total,
+                status='Pending',  # cash is collected on delivery
+            )
+            order.payment = payment
+            order.is_ordered = True
+            order.save()
 
-        # Reduce the quantity of the sold products
-        product = Product.objects.get(id=item.product_id)
-        product.stock -= item.quantity
-        product.save()
+            for item in cart_items:
+                orderproduct = OrderProduct.objects.create(
+                    order=order,
+                    payment=payment,
+                    user=request.user,
+                    product_id=item.product_id,
+                    quantity=item.quantity,
+                    product_price=item.product.price,
+                    ordered=True,
+                )
+                orderproduct.variations.set(item.variations.all())
+                products[item.product_id].stock -= item.quantity
 
-    # Clear cart
-    CartItem.objects.filter(user=request.user).delete()
-
-    # Send order recieved email to customer
-    mail_subject = 'Thank you for your order!'
-    message = render_to_string('orders/order_recieved_email.html', {
-        'user': request.user,
-        'order': order,
-    })
-    to_email = request.user.email
-    send_email = EmailMessage(mail_subject, message, to=[to_email])
-    send_email.send()
-
-    # Send order number and transaction id back to sendData method via JsonResponse
-    data = {
-        'order_number': order.order_number,
-        'transID': payment.payment_id,
-    }
-    return JsonResponse(data)
-
-def place_order(request, total=0, quantity=0,):
-    current_user = request.user
-
-    # If the cart count is less than or equal to 0, then redirect back to shop
-    cart_items = CartItem.objects.filter(user=current_user)
-    cart_count = cart_items.count()
-    if cart_count <= 0:
-        return redirect('store')
-
-    grand_total = 0
-    tax = 0
-    for cart_item in cart_items:
-        total += (cart_item.product.price * cart_item.quantity)
-        quantity += cart_item.quantity
-    tax = (2 * total)/100
-    grand_total = total + tax
-
-    if request.method == 'POST':
-        form = OrderForm(request.POST)
-        if form.is_valid():
-            # Store all the billing information inside Order table
-            data = Order()
-            data.user = current_user
-            data.first_name = form.cleaned_data['first_name']
-            data.last_name = form.cleaned_data['last_name']
-            data.phone = form.cleaned_data['phone']
-            data.email = form.cleaned_data['email']
-            data.address_line_1 = form.cleaned_data['address_line_1']
-            data.address_line_2 = form.cleaned_data['address_line_2']
-            data.country = form.cleaned_data['country']
-            data.state = form.cleaned_data['state']
-            data.city = form.cleaned_data['city']
-            data.order_note = form.cleaned_data['order_note']
-            data.order_total = grand_total
-            data.tax = tax
-            data.ip = request.META.get('REMOTE_ADDR')
-            data.save()
-            # Generate order number
-            yr = int(datetime.date.today().strftime('%Y'))
-            dt = int(datetime.date.today().strftime('%d'))
-            mt = int(datetime.date.today().strftime('%m'))
-            d = datetime.date(yr,mt,dt)
-            current_date = d.strftime("%Y%m%d") #20210305
-            order_number = current_date + str(data.id)
-            data.order_number = order_number
-            data.save()
-
-            order = Order.objects.get(user=current_user, is_ordered=False, order_number=order_number)
-            context = {
-                'order': order,
-                'cart_items': cart_items,
-                'total': total,
-                'tax': tax,
-                'grand_total': grand_total,
-            }
-            return render(request, 'orders/payments.html', context)
-    else:
+            for product in products.values():
+                product.save()
+            CartItem.objects.filter(user=request.user).delete()
+    except OutOfStock as exc:
+        messages.error(request, f'Sorry, "{exc}" does not have enough stock.')
+        return redirect('cart')
+    except Unavailable as exc:
+        messages.error(request, f'Sorry, "{exc}" is no longer available. Please remove it from your cart.')
+        return redirect('cart')
+    except CartChanged:
+        messages.error(request, 'Your cart changed after you placed the order. Please check the new total and place it again.')
         return redirect('checkout')
 
+    # Email is best effort: the order is already saved, so an SMTP failure must not undo it.
+    try:
+        message = render_to_string('orders/order_recieved_email.html', {
+            'user': request.user,
+            'order': order,
+            'lines': order.orderproduct_set.select_related('product'),
+            'order_url': request.build_absolute_uri(reverse('order_detail', args=[order.order_number])),
+        })
+        EmailMessage(f'Your KoffeeCart order {order.order_number}', message, to=[request.user.email]).send()
+    except Exception:
+        logger.exception('Could not send order email for order %s', order.order_number)
 
+    return redirect(
+        reverse('order_complete') + f'?order_number={order.order_number}&payment_id={payment.payment_id}')
+
+
+@login_required(login_url='login')
+def place_order(request):
+    current_user = request.user
+
+    # If the cart is empty, send the user back to the shop
+    cart_items = (CartItem.objects.filter(user=current_user)
+                  .select_related('product__category').prefetch_related('variations'))
+    if not cart_items.exists():
+        return redirect('store')
+
+    if request.method != 'POST':
+        return redirect('checkout')
+
+    total, quantity, tax, grand_total = calculate_totals(cart_items)
+    totals = {
+        'cart_items': cart_items,
+        'total': total,
+        'quantity': quantity,
+        'tax': tax,
+        'grand_total': grand_total,
+    }
+
+    form = OrderForm(request.POST)
+    if not form.is_valid():
+        # Show the checkout page again with the errors and what the user typed.
+        return render(request, 'store/checkout.html', {'form': form, **totals})
+
+    # Each "Review order" used to leave another unpaid order behind. Unpaid orders have no
+    # payment and no order lines, so the previous one is simply replaced.
+    Order.objects.filter(user=current_user, is_ordered=False).delete()
+
+    # Store all the billing information inside Order table
+    order = form.save(commit=False)
+    order.user = current_user
+    order.order_total = grand_total
+    order.tax = tax
+    order.ip = request.META.get('REMOTE_ADDR')
+    order.save()
+    # Order number = today's date + the order id, e.g. 202603051
+    order.order_number = timezone.localdate().strftime('%Y%m%d') + str(order.id)
+    order.save()
+
+    return render(request, 'orders/payments.html', {'order': order, **totals})
+
+
+@login_required(login_url='login')
 def order_complete(request):
     order_number = request.GET.get('order_number')
     transID = request.GET.get('payment_id')
 
     try:
-        order = Order.objects.get(order_number=order_number, is_ordered=True)
-        ordered_products = OrderProduct.objects.filter(order_id=order.id)
+        order = Order.objects.get(order_number=order_number, user=request.user, is_ordered=True)
+        ordered_products = (OrderProduct.objects.filter(order_id=order.id)
+                            .select_related('product__category').prefetch_related('variations'))
 
         subtotal = 0
         for i in ordered_products:
             subtotal += i.product_price * i.quantity
 
-        payment = Payment.objects.get(payment_id=transID)
+        payment = Payment.objects.get(payment_id=transID, user=request.user)
 
         context = {
             'order': order,

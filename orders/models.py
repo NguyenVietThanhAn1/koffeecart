@@ -1,4 +1,5 @@
-from django.db import models
+from django.db import models, transaction
+from django.db.models import F
 from accounts.models import Account
 from store.models import Product, Variation
 
@@ -8,7 +9,7 @@ class Payment(models.Model):
     user = models.ForeignKey(Account, on_delete=models.CASCADE)
     payment_id = models.CharField(max_length=100)
     payment_method = models.CharField(max_length=100)
-    amount_paid = models.CharField(max_length=100) # this is the total amount paid
+    amount_paid = models.DecimalField(max_digits=10, decimal_places=2)  # the total amount paid
     status = models.CharField(max_length=100)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -37,14 +38,37 @@ class Order(models.Model):
     state = models.CharField(max_length=50)
     city = models.CharField(max_length=50)
     order_note = models.CharField(max_length=100, blank=True)
-    order_total = models.FloatField()
-    tax = models.FloatField()
+    order_total = models.DecimalField(max_digits=10, decimal_places=2)
+    tax = models.DecimalField(max_digits=10, decimal_places=2)
     status = models.CharField(max_length=10, choices=STATUS, default='New')
     ip = models.CharField(blank=True, max_length=20)
     is_ordered = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+
+    CANCELLABLE_BY_CUSTOMER = ('New',)  # once the shop accepted it, only the shop can cancel
+
+    def cancel(self):
+        """Cancel a placed order and put its items back in stock.
+
+        Safe to call twice or from two places at once: the order row is locked and an
+        already cancelled order is left alone, so stock is never returned twice.
+        Returns True when this call did the cancelling.
+        """
+        with transaction.atomic():
+            order = Order.objects.select_for_update().get(pk=self.pk)
+            if not order.is_ordered or order.status == 'Cancelled':
+                return False
+            for line in order.orderproduct_set.all():
+                # F(): the database adds to the current value, even if it changed meanwhile
+                Product.objects.filter(pk=line.product_id).update(stock=F('stock') + line.quantity)
+            order.status = 'Cancelled'
+            order.save(update_fields=['status', 'updated_at'])
+            if order.payment_id:
+                Payment.objects.filter(pk=order.payment_id, status='Pending').update(status='Cancelled')
+        self.status = 'Cancelled'
+        return True
 
     def full_name(self):
         return f'{self.first_name} {self.last_name}'
@@ -63,10 +87,14 @@ class OrderProduct(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
     variations = models.ManyToManyField(Variation, blank=True)
     quantity = models.IntegerField()
-    product_price = models.FloatField()
+    product_price = models.DecimalField(max_digits=10, decimal_places=2)
     ordered = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    def sub_total(self):
+        # Same name as CartItem.sub_total, so one template can list cart lines and order lines.
+        return self.product_price * self.quantity
 
     def __str__(self):
         return self.product.product_name

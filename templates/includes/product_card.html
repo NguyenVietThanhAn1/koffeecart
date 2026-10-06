@@ -1,0 +1,19 @@
+{% load store_extras %}
+<article class="kc-card">
+  <div class="kc-card-img">
+    <img src="{{ product.images.url }}" alt="" loading="lazy">
+    {% if product.discount_percent %}<span class="kc-badge-discount">-{{ product.discount_percent }}%</span>{% endif %}
+    {% if product.stock <= 0 %}<div class="kc-sold-out"><span>Sold out</span></div>{% endif %}
+  </div>
+  <div class="kc-card-body">
+    <h3 class="kc-card-title"><a href="{{ product.get_url }}">{{ product.product_name }}</a></h3>
+    <div>
+      <span class="kc-price">${{ product.price }}</span>
+      {% if product.discount_percent %}<span class="kc-price-old ms-1">${{ product.compare_at_price }}</span>{% endif %}
+    </div>
+    <div class="kc-card-meta">
+      <span>{% if product.countReview %}{% stars product.averageReview %}{% endif %}</span>
+      <span>{% if product.sold %}{{ product.sold|compact }} sold{% endif %}</span>
+    </div>
+  </div>
+</article>

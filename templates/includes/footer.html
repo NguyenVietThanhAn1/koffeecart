@@ -1,33 +1,49 @@
-<!-- ========================= FOOTER ========================= -->
-<footer class="section-footer border-top">
-	<div class="container">
-		<section class="footer-bottom border-top row">
-			<div class="col-md-2">
-				<p class="text-muted"> Est2025 Koffeecart </p>
-			</div>
-			<div class="col-md-8 text-md-center">
-				<span  class="px-2">kingofanglels@gmail.com</span>
-				<span  class="px-2">+84 354 472 696</span>
-				<span  class="px-2">141 Pham Van Dong, Cau Giay, Ha Noi</span>
-			</div>
-			<div class="col-md-2 text-md-right text-muted">
-				<i class="fab fa-lg fa-cc-visa"></i>
-				<i class="fab fa-lg fa-cc-paypal"></i>
-				<i class="fab fa-lg fa-cc-mastercard"></i>
-			</div>
-		</section>
-	</div><!-- //container -->
+<a href="#top" class="kc-back-to-top mt-4">Back to top</a>
+<footer class="kc-footer py-4 py-lg-5">
+  <div class="container-xl">
+    <div class="row g-4">
+      <div class="col-6 col-lg-3">
+        <h2>Shop</h2>
+        <ul class="list-unstyled mb-0">
+          <li><a href="{% url 'store' %}">All products</a></li>
+          <li><a href="{% url 'store' %}?on_sale=1">Today's deals</a></li>
+          <li><a href="{% url 'store' %}?sort=sales">Best sellers</a></li>
+          {% for category in links %}<li><a href="{{ category.get_url }}">{{ category.category_name }}</a></li>{% endfor %}
+        </ul>
+      </div>
+      <div class="col-6 col-lg-3">
+        <h2>Your account</h2>
+        <ul class="list-unstyled mb-0">
+          {% if user.is_authenticated %}
+          <li><a href="{% url 'dashboard' %}">Your account</a></li>
+          <li><a href="{% url 'edit_profile' %}">Edit profile</a></li>
+          {% else %}
+          <li><a href="{% url 'login' %}">Sign in</a></li>
+          <li><a href="{% url 'register' %}">Create an account</a></li>
+          {% endif %}
+          <li><a href="{% url 'my_orders' %}">Your orders</a></li>
+          <li><a href="{% url 'cart' %}">Cart</a></li>
+        </ul>
+      </div>
+      <div class="col-6 col-lg-3">
+        <h2>Customer service</h2>
+        <ul class="list-unstyled mb-0">
+          <li><i class="fas fa-envelope fa-fw me-1" aria-hidden="true"></i>kingofanglels@gmail.com</li>
+          <li><i class="fas fa-phone fa-fw me-1" aria-hidden="true"></i>+84 354 472 696</li>
+          <li><i class="fas fa-map-marker-alt fa-fw me-1" aria-hidden="true"></i>141 Pham Van Dong, Cau Giay, Ha Noi</li>
+        </ul>
+      </div>
+      <div class="col-6 col-lg-3">
+        <h2>Pay your way</h2>
+        <p class="mb-2"><i class="fas fa-money-bill-wave me-2" aria-hidden="true"></i>Cash on delivery</p>
+        <p class="mb-0 small">Order now, pay when your coffee arrives. No card needed.</p>
+      </div>
+    </div>
+  </div>
 </footer>
-<!-- ========================= FOOTER END // ========================= -->
-<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
-<script>
-	$(document).ready(function(){
-		$('.thumb a').click(function(e){
-			e.preventDefault();
-			$('.mainImage img').attr('src', $(this).attr("href"));
-		})
-	})
-</script>
-
-</body>
-</html>
+<div class="kc-footer-bottom py-3">
+  <div class="container-xl d-flex flex-wrap justify-content-between gap-2">
+    <span><i class="fas fa-mug-hot me-1" aria-hidden="true"></i>KoffeeCart &middot; Premium beans. Timeless tradition.</span>
+    <span>&copy; 2025&ndash;{% now 'Y' %} KoffeeCart</span>
+  </div>
+</div>

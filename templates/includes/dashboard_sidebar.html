@@ -1,12 +1,14 @@
-<aside class="col-md-3">
-  <!--   SIDEBAR   -->
-  <ul class="list-group">
-    <a class="list-group-item {% if '/accounts/' == request.path %}active{% endif %}" href="{% url 'dashboard' %}"> Dashboard </a>
-    <a class="list-group-item {% if '/my_orders/' in request.path %}active{% endif %}" href="{% url 'my_orders' %}"> My Orders </a>
-    <a class="list-group-item {% if '/edit_profile/' in request.path %}active{% endif %}" href="{% url 'edit_profile' %}"> Edit Profile </a>
-    <a class="list-group-item {% if '/change_password/' in request.path %}active{% endif %}" href="{% url 'change_password' %}"> Change Password </a>
-  </ul>
-  <br>
-  <a class="btn btn-light btn-block" href="{% url 'logout' %}"> <i class="fa fa-power-off"></i> <span class="text">Log out</span> </a>
-  <!--   SIDEBAR .//END   -->
+{% with path=request.resolver_match.url_name %}
+<aside class="col-lg-3 mb-4">
+  <div class="list-group">
+    <a class="list-group-item list-group-item-action {% if path == 'dashboard' %}active{% endif %}" href="{% url 'dashboard' %}"><i class="fas fa-th-large fa-fw me-2" aria-hidden="true"></i>Dashboard</a>
+    <a class="list-group-item list-group-item-action {% if path == 'my_orders' or path == 'order_detail' %}active{% endif %}" href="{% url 'my_orders' %}"><i class="fas fa-receipt fa-fw me-2" aria-hidden="true"></i>My orders</a>
+    <a class="list-group-item list-group-item-action {% if path == 'edit_profile' %}active{% endif %}" href="{% url 'edit_profile' %}"><i class="fas fa-user-edit fa-fw me-2" aria-hidden="true"></i>Edit profile</a>
+    <a class="list-group-item list-group-item-action {% if path == 'change_password' %}active{% endif %}" href="{% url 'change_password' %}"><i class="fas fa-key fa-fw me-2" aria-hidden="true"></i>Change password</a>
+  </div>
+  <form action="{% url 'logout' %}" method="POST" class="mt-3">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-outline-primary w-100"><i class="fas fa-power-off me-2" aria-hidden="true"></i>Log out</button>
+  </form>
 </aside>
+{% endwith %}

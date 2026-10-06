@@ -1,0 +1,10 @@
+[Unit]
+Description=KoffeeCart: delete expired sessions (Django never removes them by itself)
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+User=@USER@
+WorkingDirectory=@DEPLOY_DIR@
+ExecStart=/usr/bin/env docker compose --env-file @DEPLOY_DIR@/.env.prod -f @DEPLOY_DIR@/docker-compose.prod.yml exec -T web python manage.py clearsessions

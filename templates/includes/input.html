@@ -1,0 +1,10 @@
+{% comment %}
+One labelled text input with its errors.
+  {% include 'includes/input.html' with name='city' label='City' value=form.city.value errors=form.city.errors required=True %}
+Optional: type, col (grid class), fallback (shown when value is empty, e.g. the user's own name).
+{% endcomment %}
+<div class="{{ col|default:'col-md-6' }}">
+  <label for="id_{{ name }}" class="form-label">{{ label }}</label>
+  <input type="{{ type|default:'text' }}" id="id_{{ name }}" name="{{ name }}" class="form-control{% if errors %} is-invalid{% endif %}" value="{% if value %}{{ value }}{% elif fallback %}{{ fallback }}{% endif %}"{% if required %} required{% endif %}>
+  {% for error in errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+</div>

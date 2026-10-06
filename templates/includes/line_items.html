@@ -1,0 +1,20 @@
+{% comment %}
+Read-only list of cart lines (CartItem) or order lines (OrderProduct): both have
+product, quantity, variations and sub_total(). Unit price: product_price on an order
+line (the price paid), product.price on a cart line.
+{% endcomment %}
+<ul class="list-group list-group-flush">
+  {% for item in items %}
+  <li class="list-group-item d-flex gap-3 align-items-center px-0">
+    <img src="{{ item.product.images.url }}" class="item-img" alt="">
+    <div class="flex-grow-1">
+      <a href="{{ item.product.get_url }}" class="fw-semibold text-decoration-none">{{ item.product.product_name }}</a>
+      <div class="small text-body-secondary">
+        {% for v in item.variations.all %}{{ v.variation_category|capfirst }}: {{ v.variation_value|capfirst }}{% if not forloop.last %} &middot; {% endif %}{% endfor %}
+      </div>
+      <div class="small text-body-secondary">{{ item.quantity }} &times; ${% firstof item.product_price item.product.price %}</div>
+    </div>
+    <span class="fw-semibold">${{ item.sub_total }}</span>
+  </li>
+  {% endfor %}
+</ul>

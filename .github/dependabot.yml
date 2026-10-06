@@ -1,0 +1,36 @@
+# Weekly update PRs. Each one goes through the full CI (tests, pip-audit, Trivy) before merge.
+version: 2
+updates:
+  # Python lock files. Dependabot understands uv-compiled requirements files with hashes.
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      patches:               # one PR for all patch releases instead of one per package
+        update-types: [patch]
+    ignore:
+      - dependency-name: django   # stay on the 5.2 LTS line
+        update-types: [version-update:semver-major, version-update:semver-minor]
+
+  # Base images in Dockerfile (python) and compose files (postgres, nginx).
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
+    ignore:
+      - dependency-name: postgres # a major Postgres upgrade needs a dump/restore, do it by hand
+        update-types: [version-update:semver-major]
+
+  # Actions are pinned to a commit SHA; Dependabot bumps the SHA and the version comment.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]

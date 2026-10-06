@@ -1,4 +1,5 @@
 from django import forms
+from django.contrib.auth.password_validation import validate_password
 from .models import Account, UserProfile
 
 
@@ -15,6 +16,14 @@ class RegistrationForm(forms.ModelForm):
         model = Account
         fields = ['first_name', 'last_name', 'phone_number', 'email', 'password']
 
+    def clean_email(self):
+        # The unique constraint only catches exact duplicates; "An@x.com" and "an@x.com" are
+        # the same mailbox, so they must be the same account.
+        email = self.cleaned_data['email']
+        if Account.objects.filter(email__iexact=email).exists():
+            raise forms.ValidationError('An account with this email already exists.')
+        return email
+
     def clean(self):
         cleaned_data = super(RegistrationForm, self).clean()
         password = cleaned_data.get('password')
@@ -24,6 +33,21 @@ class RegistrationForm(forms.ModelForm):
             raise forms.ValidationError(
                 "Password does not match!"
             )
+
+        if password:
+            # Give the validators a user object so "too similar to your email/name" works.
+            candidate = Account(
+                first_name=cleaned_data.get('first_name', ''),
+                last_name=cleaned_data.get('last_name', ''),
+                email=cleaned_data.get('email', ''),
+                username=cleaned_data.get('email', '').split('@')[0],
+            )
+            try:
+                validate_password(password, candidate)
+            except forms.ValidationError as exc:
+                self.add_error('password', exc)
+
+        return cleaned_data
 
     def __init__(self, *args, **kwargs):
         super(RegistrationForm, self).__init__(*args, **kwargs)

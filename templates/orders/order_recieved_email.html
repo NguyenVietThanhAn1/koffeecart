@@ -1,9 +1,21 @@
-{% autoescape off %}
+{% autoescape off %}Hi {{ user.first_name }},
 
-Hi {{user.first_name}},
+Thank you for your order! We have received it and will start preparing it soon.
 
-YOUR ORDER HAS BEEN RECIEVED
+Order number: {{ order.order_number }}
+{% for line in lines %}
+  {{ line.quantity }} x {{ line.product.product_name }}  ${{ line.sub_total }}{% endfor %}
 
-Order Number: {{order.order_number}}
+Tax: ${{ order.tax }}
+Total: ${{ order.order_total }}
+Payment: Cash on delivery (pay when the order arrives)
 
+Deliver to:
+  {{ order.full_name }}
+  {{ order.full_address }}
+  {{ order.city }}, {{ order.state }}, {{ order.country }}
+
+See or cancel your order: {{ order_url }}
+
+KoffeeCart
 {% endautoescape %}
