@@ -23,6 +23,10 @@ class OutOfStock(Exception):
     pass
 
 
+class CartChanged(Exception):
+    """The cart no longer matches the total saved on the order at place_order."""
+
+
 @login_required(login_url='login')
 @require_POST
 def payments(request):
@@ -44,9 +48,15 @@ def payments(request):
             if order is None:
                 return HttpResponseBadRequest('Order not found')
 
-            cart_items = list(CartItem.objects.filter(user=request.user))
+            cart_items = list(CartItem.objects.filter(user=request.user).select_related('product'))
             if not cart_items:
                 return HttpResponseBadRequest('Cart is empty')
+
+            # The user confirmed the total shown on the payment page. If the cart changed
+            # since then (another tab, price change), that total is wrong: do not place it.
+            _, _, _, grand_total = calculate_totals(cart_items)
+            if grand_total != order.order_total:
+                raise CartChanged
 
             # Lock the products, then check stock before changing anything.
             products = Product.objects.select_for_update().in_bulk(
@@ -88,6 +98,9 @@ def payments(request):
     except OutOfStock as exc:
         messages.error(request, f'Sorry, "{exc}" does not have enough stock.')
         return redirect('cart')
+    except CartChanged:
+        messages.error(request, 'Your cart changed after you placed the order. Please check the new total and place it again.')
+        return redirect('checkout')
 
     # Email is best effort: the order is already saved, so an SMTP failure must not undo it.
     try:

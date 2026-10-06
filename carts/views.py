@@ -1,6 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.views.decorators.http import require_POST
 from django.contrib.auth.decorators import login_required
+from django.db import transaction
 
 from store.models import Product, Variation
 from .models import Cart, CartItem
@@ -8,10 +9,40 @@ from .pricing import calculate_totals
 
 
 def _cart_id(request):
-    cart = request.session.session_key
-    if not cart:
-        cart = request.session.create()
-    return cart
+    # session.create() returns None; the new key is on the session afterwards.
+    if not request.session.session_key:
+        request.session.create()
+    return request.session.session_key
+
+
+def _line_key(item):
+    """Two cart lines are "the same" when product and set of variations are equal."""
+    return item.product_id, frozenset(v.id for v in item.variations.all())
+
+
+def merge_guest_cart(cart_id, user):
+    """Move the guest cart into the user's cart when they log in.
+
+    A guest line that matches one of the user's lines adds its quantity to it;
+    any other guest line simply becomes the user's.
+    """
+    guest_lines = CartItem.objects.filter(cart__cart_id=cart_id, user__isnull=True).prefetch_related('variations')
+    with transaction.atomic():
+        user_lines = {
+            _line_key(line): line
+            for line in CartItem.objects.filter(user=user).prefetch_related('variations')
+        }
+        for guest in guest_lines:
+            key = _line_key(guest)
+            if key in user_lines:
+                mine = user_lines[key]
+                mine.quantity += guest.quantity
+                mine.save()
+                guest.delete()
+            else:
+                guest.user = user
+                guest.save()
+                user_lines[key] = guest
 
 
 def _cart_items(request):

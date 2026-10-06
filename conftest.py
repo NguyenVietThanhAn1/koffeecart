@@ -60,10 +60,29 @@ def order_with_cart(db, product, make_order):
     from carts.models import CartItem
 
     def _make(user, qty=1, number='202601012'):
+        from carts.pricing import calculate_totals
         order = make_order(user, number=number, paid=False)
-        CartItem.objects.create(user=user, product=product, quantity=qty)
+        item = CartItem.objects.create(user=user, product=product, quantity=qty)
+        # Same totals that place_order would have saved for this cart.
+        _, _, order.tax, order.order_total = calculate_totals([item])
+        order.save()
         return order
     return _make
+
+
+@pytest.fixture
+def buy(db, make_order):
+    """Record that a user has bought a product (a placed order that contains it)."""
+    from orders.models import OrderProduct
+    counter = {'n': 0}
+
+    def _buy(user, product):
+        counter['n'] += 1
+        order = make_order(user, number=f'20260201{counter["n"]}', paid=True)
+        return OrderProduct.objects.create(
+            order=order, payment=order.payment, user=user, product=product,
+            quantity=1, product_price=product.price, ordered=True)
+    return _buy
 
 
 @pytest.fixture

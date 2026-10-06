@@ -239,3 +239,40 @@ def test_logged_in_remove_cart_decrements(client, user_a, product):
     client.post(reverse('remove_cart', args=[product.id, item.id]))
     item.refresh_from_db()
     assert item.quantity == 1
+
+
+# ---- R6: logging in merges the guest cart into the user's cart, line by line ----
+def _login(client):
+    return client.post(reverse('login'), {'email': 'a@example.com', 'password': 'S3cure-pass-123'})
+
+
+def test_login_merge_adds_quantities_of_same_line(client, user_a, product):
+    CartItem.objects.create(user=user_a, product=product, quantity=1)
+    _anon_add(client, product)
+    _anon_add(client, product)  # the guest has 2
+    _login(client)
+    line = CartItem.objects.get(product=product)  # exactly one line left
+    assert line.user == user_a and line.quantity == 3
+
+
+def test_login_merge_keeps_different_variations_apart(client, user_a, product):
+    red = Variation.objects.create(product=product, variation_category='color', variation_value='red')
+    Variation.objects.create(product=product, variation_category='color', variation_value='blue')
+    mine = CartItem.objects.create(user=user_a, product=product, quantity=1)
+    mine.variations.add(red)
+    _anon_add(client, product, color='blue')
+    _anon_add(client, product, color='red')
+    _login(client)
+    assert _lines(user=user_a) == {('red',): 2, ('blue',): 1}
+    assert not CartItem.objects.filter(user__isnull=True).exists()  # no orphaned guest lines
+
+
+# ---- R7: the very first request of a new visitor already has a cart id ----
+def test_cart_id_is_set_on_first_request(rf):
+    from django.contrib.sessions.middleware import SessionMiddleware
+    from carts.views import _cart_id
+    request = rf.get('/')
+    SessionMiddleware(lambda r: None).process_request(request)
+    assert request.session.session_key is None
+    cart_id = _cart_id(request)
+    assert cart_id and cart_id == request.session.session_key

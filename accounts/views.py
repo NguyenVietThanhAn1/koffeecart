@@ -4,6 +4,7 @@ from .forms import RegistrationForm, UserForm, UserProfileForm
 from .models import Account, UserProfile
 from orders.models import Order, OrderProduct
 from django.contrib import messages, auth
+from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 
 # Verification email
@@ -14,8 +15,7 @@ from django.utils.encoding import force_bytes
 from django.contrib.auth.tokens import default_token_generator
 from django.core.mail import EmailMessage
 
-from carts.views import _cart_id
-from carts.models import Cart, CartItem
+from carts.views import _cart_id, merge_guest_cart
 import logging
 from urllib.parse import parse_qs, urlencode, urlparse
 
@@ -27,6 +27,20 @@ from django.utils.http import url_has_allowed_host_and_scheme
 logger = logging.getLogger(__name__)
 
 
+def _unique_username(email):
+    """A username from the email's local part, made unique with a number when taken.
+
+    "an@x.com" -> "an", then "an@y.com" -> "an2". The email is the login, the username
+    is only a display name, so a suffix is harmless.
+    """
+    base = email.split('@')[0][:40] or 'user'
+    username, n = base, 1
+    while Account.objects.filter(username=username).exists():
+        n += 1
+        username = f'{base}{n}'
+    return username
+
+
 def register(request):
     if request.method == 'POST':
         form = RegistrationForm(request.POST)
@@ -36,7 +50,7 @@ def register(request):
             phone_number = form.cleaned_data['phone_number']
             email = form.cleaned_data['email']
             password = form.cleaned_data['password']
-            username = email.split("@")[0]
+            username = _unique_username(email)
             try:
                 # Create the account and send the activation mail as one unit: if the mail
                 # cannot be sent, the account is rolled back so the user can simply retry.
@@ -45,11 +59,8 @@ def register(request):
                     user.phone_number = phone_number
                     user.save()
 
-                    # Create a user profile
-                    profile = UserProfile()
-                    profile.user = user
-                    profile.profile_picture = 'default/default-user.png'
-                    profile.save()
+                    # No picture yet: the templates show a static default avatar instead.
+                    UserProfile.objects.create(user=user)
 
                     # USER ACTIVATION
                     current_site = get_current_site(request)
@@ -77,51 +88,14 @@ def register(request):
 
 def login(request):
     if request.method == 'POST':
-        email = request.POST['email']
-        password = request.POST['password']
+        email = request.POST.get('email', '')
+        password = request.POST.get('password', '')
 
         user = auth.authenticate(email=email, password=password)
 
         if user is not None:
-            try:
-                cart = Cart.objects.get(cart_id=_cart_id(request))
-                is_cart_item_exists = CartItem.objects.filter(cart=cart).exists()
-                if is_cart_item_exists:
-                    cart_item = CartItem.objects.filter(cart=cart)
-
-                    # Getting the product variations by cart id
-                    product_variation = []
-                    for item in cart_item:
-                        variation = item.variations.all()
-                        product_variation.append(list(variation))
-
-                    # Get the cart items from the user to access his product variations
-                    cart_item = CartItem.objects.filter(user=user)
-                    ex_var_list = []
-                    id = []
-                    for item in cart_item:
-                        existing_variation = item.variations.all()
-                        ex_var_list.append(list(existing_variation))
-                        id.append(item.id)
-
-                    # product_variation = [1, 2, 3, 4, 6]
-                    # ex_var_list = [4, 6, 3, 5]
-
-                    for pr in product_variation:
-                        if pr in ex_var_list:
-                            index = ex_var_list.index(pr)
-                            item_id = id[index]
-                            item = CartItem.objects.get(id=item_id)
-                            item.quantity += 1
-                            item.user = user
-                            item.save()
-                        else:
-                            cart_item = CartItem.objects.filter(cart=cart)
-                            for item in cart_item:
-                                item.user = user
-                                item.save()
-            except Cart.DoesNotExist:
-                pass  # guest had no cart, nothing to merge
+            # Before auth.login(): logging in replaces the session key, which is the guest cart id.
+            merge_guest_cart(_cart_id(request), user)
             auth.login(request, user)
             messages.success(request, 'You are now logged in.')
             # The login page is opened as /accounts/login/?next=/cart/checkout/,
@@ -283,11 +257,11 @@ def edit_profile(request):
 @login_required(login_url='login')
 def change_password(request):
     if request.method == 'POST':
-        current_password = request.POST['current_password']
-        new_password = request.POST['new_password']
-        confirm_password = request.POST['confirm_password']
+        current_password = request.POST.get('current_password', '')
+        new_password = request.POST.get('new_password', '')
+        confirm_password = request.POST.get('confirm_password', '')
 
-        user = Account.objects.get(username__exact=request.user.username)
+        user = request.user
 
         if new_password == confirm_password:
             success = user.check_password(current_password)
@@ -300,7 +274,8 @@ def change_password(request):
                     return redirect('change_password')
                 user.set_password(new_password)
                 user.save()
-                # auth.logout(request)
+                # A new password invalidates every session; keep this one logged in.
+                update_session_auth_hash(request, user)
                 messages.success(request, 'Password updated successfully.')
                 return redirect('change_password')
             else:

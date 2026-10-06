@@ -210,3 +210,31 @@ def test_order_complete_page_shows_order_details(client, user_a, make_product):
     assert '59.97' in html and '1.20' in html and '61.17' in html
     assert 'Cash on delivery' in html
     assert 'Make Payment' not in html
+
+
+# ---- R1: the total is fixed at place_order; a cart changed afterwards must not be placed ----
+def test_cart_changed_after_place_order_is_not_placed(client, user_a, product, make_product, order_with_cart):
+    order = order_with_cart(user_a)
+    extra = make_product(price='50.00', stock=10)
+    CartItem.objects.create(user=user_a, product=extra, quantity=1)  # added in another tab
+    client.force_login(user_a)
+
+    resp = _pay(client, orderID=order.order_number)
+
+    assert resp.status_code == 302 and resp['Location'] == reverse('checkout')
+    order.refresh_from_db()
+    extra.refresh_from_db()
+    product.refresh_from_db()
+    assert order.is_ordered is False
+    assert (extra.stock, product.stock) == (10, 5)
+    assert Payment.objects.count() == 0
+    assert CartItem.objects.filter(user=user_a).count() == 2  # cart kept, so the user can check out again
+
+
+def test_unchanged_cart_is_placed_with_matching_total(client, user_a, product, order_with_cart):
+    order = order_with_cart(user_a, qty=2)
+    client.force_login(user_a)
+    assert _pay(client, orderID=order.order_number).status_code == 302
+    order.refresh_from_db()
+    assert order.is_ordered is True
+    assert order.payment.amount_paid == order.order_total == Decimal('204.00')

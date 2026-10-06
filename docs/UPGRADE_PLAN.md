@@ -9,7 +9,8 @@ File này nối tiếp [FIX_PLAN.md](FIX_PLAN.md): giữ nguyên thứ tự Phas
 | --- | --- |
 | 3.9 | Xong: commit `982b007` trên nhánh `upgrade/phase-3-7` |
 | 4 | Xong (xem commit "Phase 4") |
-| 4B, 5, 6, 7 | Đang làm theo thứ tự |
+| 4B | Xong: 17 regression test mới (fail trước khi sửa, pass sau). Kèm 2 lỗi phát hiện thêm trong admin (xem commit "Phase 4B") |
+| 5, 6, 7 | Đang làm theo thứ tự |
 
 Quyết định An đã chốt ngày 2026-10-06: **Python 3.14** (D1), **`uv pip compile`** (D2), VM **không có dữ liệu cần giữ** (D3, chỉ cần `down -v` rồi `up`), **không có domain** (D4), Phase 7 để Claude chọn (D5), An sẽ tự thu hồi Gmail app password (D6). Máy An tắt ảo hoá nên không chạy Docker local: Postgres, build image và smoke test chỉ kiểm chứng được trên CI.
 

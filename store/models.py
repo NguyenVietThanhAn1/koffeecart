@@ -1,3 +1,4 @@
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from category.models import Category
 from django.urls import reverse
@@ -85,7 +86,8 @@ class ReviewRating(models.Model):
     user = models.ForeignKey(Account, on_delete=models.CASCADE)
     subject = models.CharField(max_length=100, blank=True)
     review = models.TextField(max_length=500, blank=True)
-    rating = models.FloatField()
+    # The star widget offers 0.5 to 5 in half steps.
+    rating = models.FloatField(validators=[MinValueValidator(0.5), MaxValueValidator(5)])
     ip = models.CharField(max_length=20, blank=True)
     status = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)

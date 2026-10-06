@@ -1,17 +1,18 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from .models import Product, ReviewRating, ProductGallery
 from category.models import Category
-from carts.models import CartItem
 from django.db.models import Q
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_POST
 
-from carts.views import _cart_id
+from carts.views import _cart_items
 from django.core.paginator import Paginator
 from django.utils.http import url_has_allowed_host_and_scheme
 from .forms import ReviewForm
 from django.contrib import messages
 from orders.models import OrderProduct
+
+PRODUCTS_PER_PAGE = 6
 
 
 def store(request, category_slug=None):
@@ -21,13 +22,13 @@ def store(request, category_slug=None):
     if category_slug is not None:
         categories = get_object_or_404(Category, slug=category_slug)
         products = Product.objects.filter(category=categories, is_available=True).select_related('category').order_by('id')
-        paginator = Paginator(products, 1)
+        paginator = Paginator(products, PRODUCTS_PER_PAGE)
         page = request.GET.get('page')
         paged_products = paginator.get_page(page)
         product_count = products.count()
     else:
         products = Product.objects.filter(is_available=True).select_related('category').order_by('id')
-        paginator = Paginator(products, 3)
+        paginator = Paginator(products, PRODUCTS_PER_PAGE)
         page = request.GET.get('page')
         paged_products = paginator.get_page(page)
         product_count = products.count()
@@ -41,8 +42,9 @@ def store(request, category_slug=None):
 
 def product_detail(request, category_slug, product_slug):
     single_product = get_object_or_404(Product, category__slug=category_slug, slug=product_slug)
-    in_cart = CartItem.objects.filter(cart__cart_id=_cart_id(request), product=single_product).exists()
-    cart_item = CartItem.objects.filter(cart__cart_id=_cart_id(request), product=single_product).first()
+    # _cart_items() looks at the user's cart when logged in, at the guest cart otherwise.
+    cart_item = _cart_items(request).filter(product=single_product).first()
+    in_cart = cart_item is not None
 
     if request.user.is_authenticated:
         orderproduct = OrderProduct.objects.filter(user=request.user, product_id=single_product.id).exists()
@@ -72,7 +74,12 @@ def search(request):
     if 'keyword' in request.GET:
         keyword = request.GET['keyword']
         if keyword:
-            products = Product.objects.select_related('category').order_by('-created_date').filter(Q(description__icontains=keyword) | Q(product_name__icontains=keyword))
+            products = (
+                Product.objects.filter(is_available=True)
+                .filter(Q(description__icontains=keyword) | Q(product_name__icontains=keyword))
+                .select_related('category')
+                .order_by('-created_date')
+            )
             product_count = products.count()
     context = {
         'products': products,
@@ -93,6 +100,12 @@ def submit_review(request, product_id):
         back = referer
     else:
         back = product.get_url()
+
+    # Only people who actually bought the product may review it. The template hides the
+    # form for everyone else, but a hidden form is not a check: anyone can still POST.
+    if not OrderProduct.objects.filter(user=request.user, product=product, ordered=True).exists():
+        messages.error(request, 'You can only review products you have bought.')
+        return redirect(back)
 
     existing = ReviewRating.objects.filter(user=request.user, product=product).first()
     form = ReviewForm(request.POST, instance=existing)

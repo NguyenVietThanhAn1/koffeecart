@@ -195,3 +195,52 @@ def test_reset_password_with_stale_uid_redirects_to_login(client, db):
     resp = client.post(reverse('resetPassword'),
                        {'password': STRONG, 'confirm_password': STRONG})
     assert resp.status_code == 302 and resp['Location'] == reverse('login')
+
+
+# ---- R2: two emails with the same local part ("a@x.com", "a@y.com") must both register ----
+def test_register_same_local_part_different_domain(client, db):
+    first = client.post(reverse('register'), REGISTER)
+    second = Client().post(reverse('register'), dict(REGISTER, email='new@other.example'))
+    assert first.status_code == second.status_code == 302
+    users = Account.objects.filter(email__in=['new@example.com', 'new@other.example'])
+    assert users.count() == 2
+    assert len({u.username for u in users}) == 2
+
+
+# ---- R4: changing the password must keep the user logged in ----
+def test_change_password_keeps_session(client, user_a):
+    client.force_login(user_a)
+    client.post(reverse('change_password'), {
+        'current_password': STRONG, 'new_password': NEW_STRONG, 'confirm_password': NEW_STRONG})
+    assert client.get(reverse('dashboard')).status_code == 200
+
+
+# ---- R5: a POST with missing fields is a user error, not a 500 ----
+def test_login_with_missing_fields(client, db):
+    resp = client.post(reverse('login'), {})
+    assert resp.status_code == 302
+    assert 'Invalid login credentials' in _flash(resp)
+
+
+def test_change_password_with_missing_fields(client, user_a):
+    client.force_login(user_a)
+    resp = client.post(reverse('change_password'), {})
+    assert resp.status_code == 302
+    user_a.refresh_from_db()
+    assert user_a.check_password(STRONG)
+
+
+# ---- R11: a new profile must not point at an image file that does not exist ----
+def test_register_does_not_reference_missing_avatar(client, db):
+    client.post(reverse('register'), REGISTER)
+    profile = Account.objects.get(email='new@example.com').userprofile
+    assert not profile.profile_picture  # templates fall back to a static default avatar
+
+
+def test_admin_profile_list_works_without_picture(client, user_a):
+    from accounts.models import UserProfile
+    UserProfile.objects.create(user=user_a)
+    admin = Account.objects.create_superuser(
+        first_name='Ad', last_name='Min', email='admin@example.com', username='admin', password=STRONG)
+    client.force_login(admin)
+    assert client.get(reverse('admin:accounts_userprofile_changelist')).status_code == 200

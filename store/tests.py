@@ -1,3 +1,4 @@
+import pytest
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
@@ -22,46 +23,53 @@ def test_submit_review_rejects_get(client, user_a, product):
 GOOD_REVIEW = {'subject': 'Great', 'review': 'Tastes nice', 'rating': '4.5'}
 
 
+@pytest.fixture
+def buyer(user_a, product, buy):
+    """user_a, who has bought `product` and so may review it."""
+    buy(user_a, product)
+    return user_a
+
+
 def _review(client, product, referer=None, **data):
     extra = {'HTTP_REFERER': referer} if referer is not None else {}
     return client.post(reverse('submit_review', args=[product.id]), data, **extra)
 
 
-def test_submit_review_creates_then_updates(client, user_a, product):
-    client.force_login(user_a)
+def test_submit_review_creates_then_updates(client, buyer, product):
+    client.force_login(buyer)
     back = 'http://testserver' + product.get_url()
     resp = _review(client, product, referer=back, **GOOD_REVIEW)
     assert resp.status_code == 302 and resp['Location'] == back
     resp = _review(client, product, referer=back, **dict(GOOD_REVIEW, subject='Edited'))
     assert resp.status_code == 302
     review = ReviewRating.objects.get()  # still exactly one review
-    assert review.subject == 'Edited' and review.user == user_a
+    assert review.subject == 'Edited' and review.user == buyer
 
 
-def test_submit_review_invalid_new_review_does_not_crash(client, user_a, product):
-    client.force_login(user_a)
+def test_submit_review_invalid_new_review_does_not_crash(client, buyer, product):
+    client.force_login(buyer)
     resp = _review(client, product, **dict(GOOD_REVIEW, rating='abc'))
     assert resp.status_code == 302
     assert ReviewRating.objects.count() == 0
 
 
-def test_submit_review_invalid_update_keeps_old_review(client, user_a, product):
-    client.force_login(user_a)
+def test_submit_review_invalid_update_keeps_old_review(client, buyer, product):
+    client.force_login(buyer)
     _review(client, product, **GOOD_REVIEW)
     resp = _review(client, product, **dict(GOOD_REVIEW, subject='Bad', rating='abc'))
     assert resp.status_code == 302
     assert ReviewRating.objects.get().subject == 'Great'
 
 
-def test_submit_review_without_referer_goes_to_product_page(client, user_a, product):
-    client.force_login(user_a)
+def test_submit_review_without_referer_goes_to_product_page(client, buyer, product):
+    client.force_login(buyer)
     resp = _review(client, product, **GOOD_REVIEW)
     assert resp.status_code == 302
     assert resp['Location'] == product.get_url()
 
 
-def test_submit_review_ignores_external_referer(client, user_a, product):
-    client.force_login(user_a)
+def test_submit_review_ignores_external_referer(client, buyer, product):
+    client.force_login(buyer)
     resp = _review(client, product, referer='https://evil.com/x', **GOOD_REVIEW)
     assert resp.status_code == 302
     assert resp['Location'] == product.get_url()
@@ -145,3 +153,42 @@ def test_ratings_still_work_on_a_plain_product(user_a, product):
     plain = Product.objects.get(id=product.id)  # not annotated
     assert plain.averageReview() == 2.0
     assert plain.countReview() == 1
+
+
+# ---- R3: only buyers can review, and the rating must be within 0.5-5 ----
+def test_review_from_non_buyer_is_rejected(client, user_b, product):
+    client.force_login(user_b)
+    resp = _review(client, product, **GOOD_REVIEW)
+    assert resp.status_code == 302
+    assert ReviewRating.objects.count() == 0
+
+
+@pytest.mark.parametrize('rating', ['9', '0', '-5'])
+def test_review_rating_out_of_range_is_rejected(client, buyer, product, rating):
+    client.force_login(buyer)
+    _review(client, product, **dict(GOOD_REVIEW, rating=rating))
+    assert ReviewRating.objects.count() == 0
+
+
+# ---- R8: a category page lists more than one product per page ----
+def test_category_page_shows_several_products(client, make_product):
+    made = [make_product() for _ in range(3)]
+    resp = client.get(reverse('products_by_category', args=[made[0].category.slug]))
+    assert len(resp.context['products']) == 3
+
+
+# ---- R9: the product page knows the item is in a logged-in user's cart ----
+def test_product_detail_in_cart_for_logged_in_user(client, user_a, product):
+    from carts.models import CartItem
+    CartItem.objects.create(user=user_a, product=product, quantity=1)
+    client.force_login(user_a)
+    assert client.get(product.get_url()).context['in_cart'] is True
+
+
+# ---- R10: search must not show products that are hidden from the shop ----
+def test_search_hides_unavailable_products(client, make_product):
+    hidden = make_product()
+    hidden.is_available = False
+    hidden.save()
+    resp = client.get(reverse('search'), {'keyword': hidden.product_name})
+    assert resp.context['product_count'] == 0

@@ -21,7 +21,8 @@
 - [ ] Đơn COD có trạng thái thanh toán `Pending`. Sau khi giao hàng, đổi trạng thái đơn/thanh toán trong admin (`/securelogin/`). Chưa có luồng tự động.
 - [ ] Chạy `pytest -q` và `ruff check .` để tự kiểm chứng (cần `pip install -r requirements.txt -r requirements-dev.txt`).
 
-### Phát hiện thêm trong Phase 2 (ngoài plan, chưa sửa)
+### Phát hiện thêm trong Phase 2 (ngoài plan)
+Đã sửa hết ở Phase 4B (R1–R11 trong `docs/UPGRADE_PLAN.md`), riêng cart.html/PayPal SDK sửa ở Phase 5.
 - `register`: `username = email.split("@")[0]`, nên `a@x.com` và `a@y.com` trùng username, gây lỗi 500 khi đăng ký người thứ hai.
 - `submit_review`: user đăng nhập nào cũng gửi được review cho sản phẩm chưa mua (template chỉ ẩn form). `rating` không giới hạn 1–5.
 - `change_password`: đổi xong thì session bị vô hiệu (thiếu `update_session_auth_hash`), user bị đăng xuất.
