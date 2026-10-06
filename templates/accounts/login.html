@@ -1,51 +1,38 @@
 {% extends 'base.html' %}
 
+{% block title %}Sign in | KoffeeCart{% endblock %}
 
 {% block content %}
-
-<section class="section-conten padding-y" style="min-height:84vh">
-
-<!-- ============================ COMPONENT LOGIN   ================================= -->
-
-{% if request.GET.command == 'verification' %}
-
-<div class="container mx-auto alert alert-info text-center" role="alert" style="max-width: 1024px; margin-top:100px;">
-Thank you for registering with us. We have sent you a verification email to your email address [{{ request.GET.email }}]
-<br><br>
-Already verified? <a href="{% url 'login' %}">Login</a>
-</div>
-
-{% else %}
-
-	<div class="card mx-auto" style="max-width: 380px; margin-top:100px;">
-
-      <div class="card-body">
-      <h4 class="card-title mb-4">Sign in</h4>
-      {% include 'includes/alerts.html' %}
+<div class="container">
+  {% if request.GET.command == 'verification' %}
+  <div class="card auth-card-wide mx-auto text-center">
+    <div class="card-body p-4">
+      <i class="fas fa-envelope-open-text fa-3x mb-3 text-body-secondary" aria-hidden="true"></i>
+      <h1 class="h4">Check your email</h1>
+      <p>Thank you for registering. We sent a verification link to <strong>{{ request.GET.email }}</strong>.</p>
+      <a href="{% url 'login' %}" class="btn btn-primary">I have verified, sign in</a>
+    </div>
+  </div>
+  {% else %}
+  <div class="card auth-card mx-auto">
+    <div class="card-body p-4">
+      <h1 class="h4 mb-4">Sign in</h1>
       <form action="{% url 'login' %}" method="POST">
         {% csrf_token %}
-          <div class="form-group">
-			 <input type="email" class="form-control" placeholder="Email Address" name="email">
-          </div> <!-- form-group// -->
-          <div class="form-group">
-			<input type="password" class="form-control" placeholder="Password" name="password">
-          </div> <!-- form-group// -->
-
-          <div class="form-group">
-          	<a href="{% url 'forgotPassword' %}" class="float-right">Forgot password?</a>
-
-          </div> <!-- form-group form-check .// -->
-          <div class="form-group">
-              <button type="submit" class="btn btn-primary btn-block"> Login  </button>
-          </div> <!-- form-group// -->
+        <div class="mb-3">
+          <label for="login-email" class="form-label">Email</label>
+          <input type="email" id="login-email" name="email" class="form-control" autocomplete="email" required autofocus>
+        </div>
+        <div class="mb-2">
+          <label for="login-password" class="form-label">Password</label>
+          <input type="password" id="login-password" name="password" class="form-control" autocomplete="current-password" required>
+        </div>
+        <div class="text-end mb-3"><a href="{% url 'forgotPassword' %}" class="small">Forgot password?</a></div>
+        <button type="submit" class="btn btn-primary w-100">Sign in</button>
       </form>
-      </div> <!-- card-body.// -->
-    </div> <!-- card .// -->
-
-     <p class="text-center mt-4">Don't have account? <a href="{% url 'register' %}">Sign up</a></p>
-     <br><br>
-<!-- ============================ COMPONENT LOGIN  END.// ================================= -->
-{% endif %}
-
-</section>
+    </div>
+  </div>
+  <p class="text-center mt-3">New here? <a href="{% url 'register' %}">Create an account</a></p>
+  {% endif %}
+</div>
 {% endblock %}

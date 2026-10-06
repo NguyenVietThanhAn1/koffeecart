@@ -194,7 +194,7 @@ jobs:
           trap '$COMPOSE logs --no-color --tail=100; $COMPOSE down -v' EXIT
           $COMPOSE up -d --no-build --wait --wait-timeout 180
           curl -fsS http://localhost/health/
-          curl -fsSI http://localhost/static/css/ui.css   # static files must come from nginx
+          curl -fsSI http://localhost/static/css/koffee.css   # static files must come from nginx
           curl -fsS http://localhost/ | grep -qi koffeecart
 
       - name: Log in to Docker Hub

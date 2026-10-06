@@ -1,87 +1,45 @@
 {% extends 'base.html' %}
 
+{% block title %}Edit profile | KoffeeCart{% endblock %}
 
 {% block content %}
-
-<section class="section-conten padding-y bg">
-
-{% include 'includes/alerts.html' %}
 <div class="container">
-	<div class="row">
-	{% include 'includes/dashboard_sidebar.html' %}
-	<main class="col-md-9">
-		<article class="card">
-		<header class="card-header">
-			<strong class="d-inline-block mr-3">Edit your profile</strong>
-
-		</header>
-		<div class="card-body">
-			<div class="text-right">
-				{% if userprofile.profile_picture %}
-					<img src="{{ userprofile.profile_picture.url }}" alt="Profile Picture" width="100" style="border-radius:50px;">
-				{% else %}
-					<img src="{{ MEDIA_URL }}default/default-profile.png" alt="Default Picture" width="100" style="border-radius:50px;">
-				{% endif %}
-			</div>
-			<div class="row">
-			<div class="col-md-12">
-				<form action="{% url 'edit_profile' %}" method="POST" enctype="multipart/form-data">
-					{% csrf_token %}
-					<div class="form-row">
-						<div class="form-group col-md-6">
-							<label>First Name</label>
-							{{user_form.first_name}}
-						</div>
-						<div class="form-group col-md-6">
-							<label>Last Name</label>
-							{{user_form.last_name}}
-						</div>
-					</div>
-					<div class="form-row">
-						<div class="form-group col-md-6">
-							<label>Phone Number</label>
-							{{user_form.phone_number}}
-						</div>
-						<div class="form-group col-md-6">
-							<label>Profile Picture</label>
-							{{profile_form.profile_picture}}
-						</div>
-					</div>
-					<div class="form-group">
-						<label>Address Line 1</label>
-						{{profile_form.address_line_1}}
-					</div>
-					<div class="form-group">
-						<label>Address Line 2</label>
-						{{profile_form.address_line_2}}
-					</div>
-					<div class="form-row">
-						<div class="form-group col-md-4">
-							<label>City</label>
-							{{profile_form.city}}
-						</div>
-						<div class="form-group col-md-4">
-							<label>State</label>
-							{{profile_form.state}}
-						</div>
-						<div class="form-group col-md-4">
-							<label>Country</label>
-							{{profile_form.country}}
-						</div>
-					</div>
-					<input type="submit" value="Save" class="btn btn-primary">
-				</form>
-			</div>
-
-			</div> <!-- row.// -->
-		</div> <!-- card-body .// -->
-
-		</article> <!-- order-group.// -->
-	</main>
-</div> <!-- row.// -->
+  <div class="row">
+    {% include 'includes/dashboard_sidebar.html' %}
+    <section class="col-lg-9">
+      <div class="card">
+        <div class="card-body p-4">
+          <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="h4 mb-0">Edit profile</h1>
+            {% if userprofile.profile_picture %}
+            <img src="{{ userprofile.profile_picture.url }}" class="avatar" alt="Your profile picture">
+            {% else %}
+            <i class="fas fa-user-circle avatar-placeholder" aria-hidden="true"></i>
+            {% endif %}
+          </div>
+          <form action="{% url 'edit_profile' %}" method="POST" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="row g-3">
+              {% for field in user_form %}
+              <div class="col-md-4">
+                <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
+                {{ field }}
+                {% for error in field.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+              </div>
+              {% endfor %}
+              {% for field in profile_form %}
+              <div class="{% if field.name == 'address_line_1' or field.name == 'address_line_2' or field.name == 'profile_picture' %}col-12{% else %}col-md-4{% endif %}">
+                <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
+                {{ field }}
+                {% for error in field.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+              </div>
+              {% endfor %}
+            </div>
+            <button type="submit" class="btn btn-primary mt-4">Save changes</button>
+          </form>
+        </div>
+      </div>
+    </section>
+  </div>
 </div>
-
-
-</section>
-
 {% endblock %}

@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+
+{% block title %}Page not found | KoffeeCart{% endblock %}
+
+{% block content %}
+<div class="container text-center py-5">
+  <p class="error-code">404</p>
+  <h1 class="h3">Page not found</h1>
+  <p class="text-body-secondary">This page went cold. It may have moved, or the link is wrong.</p>
+  <a href="{% url 'home' %}" class="btn btn-primary me-2">Home</a>
+  <a href="{% url 'store' %}" class="btn btn-outline-primary">Browse coffee</a>
+</div>
+{% endblock %}

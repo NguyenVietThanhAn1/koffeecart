@@ -1,57 +1,49 @@
 {% extends 'base.html' %}
 
+{% block title %}My orders | KoffeeCart{% endblock %}
 
 {% block content %}
-
-<section class="section-conten padding-y bg">
-
-{% include 'includes/alerts.html' %}
 <div class="container">
-	<div class="row">
-	{% include 'includes/dashboard_sidebar.html' %}
-	<main class="col-md-9">
-		<article class="card">
-		<header class="card-header">
-			<strong class="d-inline-block mr-3">Your order history</strong>
-
-		</header>
-		<div class="card-body">
-			<div class="row">
-			<div class="col-md-12">
-				<table class="table table-hover">
-				  <thead>
-				    <tr>
-				      <th scope="col">Order #</th>
-				      <th scope="col">Billing Name</th>
-				      <th scope="col">Phone</th>
-				      <th scope="col">Order Total</th>
-							<th scope="col">Date</th>
-				    </tr>
-				  </thead>
-				  <tbody>
-						{% for order in orders %}
-				    <tr>
-				      <th scope="row"><a href="{% url 'order_detail' order.order_number %}">{{order.order_number}}</a></th>
-				      <td>{{order.full_name}}</td>
-				      <td>{{order.phone}}</td>
-				      <td>${{order.order_total}}</td>
-							<td>{{order.created_at}}</td>
-				    </tr>
-				{% endfor %}
-
-				  </tbody>
-				</table>
-			</div>
-
-			</div> <!-- row.// -->
-		</div> <!-- card-body .// -->
-
-		</article> <!-- order-group.// -->
-	</main>
-</div> <!-- row.// -->
+  <div class="row">
+    {% include 'includes/dashboard_sidebar.html' %}
+    <section class="col-lg-9">
+      <h1 class="section-title h4 mb-3">My orders</h1>
+      {% if orders %}
+      <div class="card">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead>
+              <tr>
+                <th scope="col">Order</th>
+                <th scope="col">Date</th>
+                <th scope="col">Deliver to</th>
+                <th scope="col">Status</th>
+                <th scope="col" class="text-end">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for order in orders %}
+              <tr>
+                <th scope="row"><a href="{% url 'order_detail' order.order_number %}">#{{ order.order_number }}</a></th>
+                <td>{{ order.created_at|date:'M j, Y' }}</td>
+                <td>{{ order.full_name }}</td>
+                <td><span class="badge text-bg-light border">{{ order.status }}</span></td>
+                <td class="text-end">${{ order.order_total }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% else %}
+      <div class="card text-center py-5">
+        <div class="card-body">
+          <p>You have not placed any orders yet.</p>
+          <a href="{% url 'store' %}" class="btn btn-primary">Start shopping</a>
+        </div>
+      </div>
+      {% endif %}
+    </section>
+  </div>
 </div>
-
-
-</section>
-
 {% endblock %}

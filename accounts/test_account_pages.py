@@ -65,7 +65,7 @@ def test_login_page_renders(client, db):
 
 def test_logout_ends_the_session(client, user_a):
     client.force_login(user_a)
-    assert client.get(reverse('logout')).status_code == 302
+    assert client.post(reverse('logout')).status_code == 302
     resp = client.get(reverse('dashboard'))
     assert resp.status_code == 302 and resp['Location'].startswith(reverse('login'))
 

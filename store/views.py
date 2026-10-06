@@ -21,13 +21,13 @@ def store(request, category_slug=None):
 
     if category_slug is not None:
         categories = get_object_or_404(Category, slug=category_slug)
-        products = Product.objects.filter(category=categories, is_available=True).select_related('category').order_by('id')
+        products = Product.objects.filter(category=categories, is_available=True).select_related('category').with_ratings().order_by('id')
         paginator = Paginator(products, PRODUCTS_PER_PAGE)
         page = request.GET.get('page')
         paged_products = paginator.get_page(page)
         product_count = products.count()
     else:
-        products = Product.objects.filter(is_available=True).select_related('category').order_by('id')
+        products = Product.objects.filter(is_available=True).select_related('category').with_ratings().order_by('id')
         paginator = Paginator(products, PRODUCTS_PER_PAGE)
         page = request.GET.get('page')
         paged_products = paginator.get_page(page)
@@ -78,6 +78,7 @@ def search(request):
                 Product.objects.filter(is_available=True)
                 .filter(Q(description__icontains=keyword) | Q(product_name__icontains=keyword))
                 .select_related('category')
+                .with_ratings()  # the product cards show stars
                 .order_by('-created_date')
             )
             product_count = products.count()

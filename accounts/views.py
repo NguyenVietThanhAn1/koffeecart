@@ -6,6 +6,7 @@ from orders.models import Order, OrderProduct
 from django.contrib import messages, auth
 from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_POST
 
 # Verification email
 from django.contrib.sites.shortcuts import get_current_site
@@ -116,6 +117,7 @@ def login(request):
 
 
 @login_required(login_url = 'login')
+@require_POST  # a GET link (or an <img src>) on any site could otherwise log users out
 def logout(request):
     auth.logout(request)
     messages.success(request, 'You are logged out.')
