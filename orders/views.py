@@ -23,6 +23,10 @@ class OutOfStock(Exception):
     pass
 
 
+class Unavailable(Exception):
+    """A product in the cart was hidden from the shop after it was added."""
+
+
 class CartChanged(Exception):
     """The cart no longer matches the total saved on the order at place_order."""
 
@@ -65,6 +69,8 @@ def payments(request):
             for item in cart_items:
                 needed[item.product_id] = needed.get(item.product_id, 0) + item.quantity
             for product_id, qty in needed.items():
+                if not products[product_id].is_available:
+                    raise Unavailable(products[product_id].product_name)
                 if products[product_id].stock < qty:
                     raise OutOfStock(products[product_id].product_name)
 
@@ -98,6 +104,9 @@ def payments(request):
     except OutOfStock as exc:
         messages.error(request, f'Sorry, "{exc}" does not have enough stock.')
         return redirect('cart')
+    except Unavailable as exc:
+        messages.error(request, f'Sorry, "{exc}" is no longer available. Please remove it from your cart.')
+        return redirect('cart')
     except CartChanged:
         messages.error(request, 'Your cart changed after you placed the order. Please check the new total and place it again.')
         return redirect('checkout')
@@ -107,8 +116,10 @@ def payments(request):
         message = render_to_string('orders/order_recieved_email.html', {
             'user': request.user,
             'order': order,
+            'lines': order.orderproduct_set.select_related('product'),
+            'order_url': request.build_absolute_uri(reverse('order_detail', args=[order.order_number])),
         })
-        EmailMessage('Thank you for your order!', message, to=[request.user.email]).send()
+        EmailMessage(f'Your KoffeeCart order {order.order_number}', message, to=[request.user.email]).send()
     except Exception:
         logger.exception('Could not send order email for order %s', order.order_number)
 
@@ -142,6 +153,10 @@ def place_order(request):
     if not form.is_valid():
         # Show the checkout page again with the errors and what the user typed.
         return render(request, 'store/checkout.html', {'form': form, **totals})
+
+    # Each "Review order" used to leave another unpaid order behind. Unpaid orders have no
+    # payment and no order lines, so the previous one is simply replaced.
+    Order.objects.filter(user=current_user, is_ordered=False).delete()
 
     # Store all the billing information inside Order table
     order = form.save(commit=False)

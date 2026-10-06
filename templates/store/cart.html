@@ -28,6 +28,7 @@
                 {% for v in cart_item.variations.all %}{{ v.variation_category|capfirst }}: {{ v.variation_value|capfirst }}{% if not forloop.last %} &middot; {% endif %}{% endfor %}
               </div>
               <div class="small text-body-secondary">${{ cart_item.product.price }} each</div>
+              {% if not cart_item.product.is_available %}<span class="badge text-bg-danger">No longer available</span>{% endif %}
             </div>
 
             {# The buttons submit the hidden POST forms below (form="..."), so no state changes via GET. #}

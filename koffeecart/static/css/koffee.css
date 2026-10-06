@@ -759,6 +759,61 @@ body {
   color: var(--kc-roast);
 }
 
+/* order progress (Placed -> Accepted -> Delivered) */
+.kc-steps {
+  display: flex;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+}
+
+.kc-steps li {
+  position: relative;
+  flex: 1;
+  padding-top: 2.1rem;
+  text-align: center;
+  font-size: .82rem;
+  color: var(--bs-secondary-color);
+}
+
+.kc-steps li::before {
+  counter-increment: step;
+  content: counter(step);
+  position: absolute;
+  top: 0;
+  left: 50%;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  margin-left: -.9rem;
+  border-radius: 50%;
+  background: #e6dbcf;
+  color: #fff;
+  font-weight: 700;
+}
+
+.kc-steps li + li::after {
+  content: "";
+  position: absolute;
+  top: .85rem;
+  right: 50%;
+  width: 100%;
+  height: 3px;
+  background: #e6dbcf;
+}
+
+.kc-steps li.done {
+  color: var(--kc-green);
+  font-weight: 600;
+}
+
+.kc-steps li.done::before,
+.kc-steps li.done::after {
+  background: var(--kc-green);
+}
+
 /* ---------- footer (Amazon-style) ---------- */
 .kc-back-to-top {
   display: block;

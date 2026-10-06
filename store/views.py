@@ -70,7 +70,7 @@ def _rating_breakdown(reviews):
 
 def product_detail(request, category_slug, product_slug):
     single_product = get_object_or_404(
-        Product.objects.for_listing(), category__slug=category_slug, slug=product_slug)
+        Product.objects.for_listing(), category__slug=category_slug, slug=product_slug, is_available=True)
     # _cart_items() looks at the user's cart when logged in, at the guest cart otherwise.
     cart_item = _cart_items(request).filter(product=single_product).first()
     in_cart = cart_item is not None

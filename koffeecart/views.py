@@ -1,5 +1,7 @@
 from django.db.models import Count, F, OuterRef, Q, Subquery
+from django.http import HttpResponse
 from django.shortcuts import render
+from django.views.decorators.http import require_GET
 
 from category.models import Category
 from store.models import Product
@@ -33,3 +35,18 @@ def home(request):
         'products': listing.order_by('-created_date', 'id')[:GRID_SIZE],
         'max_discount': max((p.discount_percent for p in deals), default=0),
     })
+
+
+@require_GET
+def robots_txt(request):
+    """Keep crawlers on the shop pages; private and endless (search) pages are excluded."""
+    lines = [
+        'User-agent: *',
+        'Disallow: /securelogin/',
+        'Disallow: /accounts/',
+        'Disallow: /cart/',
+        'Disallow: /orders/',
+        'Disallow: /store/search/',
+        f'Sitemap: {request.build_absolute_uri("/sitemap.xml")}',
+    ]
+    return HttpResponse(''.join(f'{line}\n' for line in lines), content_type='text/plain')

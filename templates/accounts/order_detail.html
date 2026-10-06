@@ -18,6 +18,17 @@
         </div>
       </div>
 
+      {# Shopee-style progress: Placed -> Accepted -> Completed #}
+      {% if order.status == 'Cancelled' %}
+      <div class="alert alert-secondary small"><i class="fas fa-ban me-1" aria-hidden="true"></i>This order was cancelled. The items went back in stock.</div>
+      {% else %}
+      <ol class="kc-steps mb-4" aria-label="Order progress">
+        <li class="done">Placed</li>
+        <li class="{% if order.status == 'Accepted' or order.status == 'Completed' %}done{% endif %}">Accepted</li>
+        <li class="{% if order.status == 'Completed' %}done{% endif %}">Delivered &amp; paid</li>
+      </ol>
+      {% endif %}
+
       <div class="row mb-4 small">
         <div class="col-sm-6">
           <strong>Deliver to</strong>
@@ -31,7 +42,8 @@
           <strong>Payment</strong><br>
           {% if order.payment.payment_method == 'COD' %}Cash on delivery{% else %}{{ order.payment.payment_method }}{% endif %}<br>
           Transaction {{ order.payment.payment_id }}<br>
-          Status: {{ order.payment.status }}
+          Payment status: {{ order.payment.status }}<br>
+          Order status: {% include 'includes/order_status.html' with status=order.status %}
         </div>
       </div>
 
@@ -45,6 +57,12 @@
   <div class="text-center mt-3 no-print">
     <button type="button" class="btn btn-outline-primary" data-print><i class="fas fa-print me-2" aria-hidden="true"></i>Print</button>
     <a href="{% url 'my_orders' %}" class="btn btn-link">Back to my orders</a>
+    {% if order.status == 'New' %}
+    <form action="{% url 'cancel_order' order.order_number %}" method="POST" class="d-inline">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-link text-danger">Cancel order</button>
+    </form>
+    {% endif %}
   </div>
 </div>
 {% endblock %}

@@ -137,6 +137,12 @@ class ReviewRating(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        constraints = [
+            # submit_review updates the existing review; the database makes sure of it.
+            models.UniqueConstraint(fields=['user', 'product'], name='one_review_per_user_and_product'),
+        ]
+
     def __str__(self):
         return self.subject
 

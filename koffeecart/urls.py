@@ -14,8 +14,10 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
+from django.contrib.sitemaps.views import sitemap
 from django.urls import path, include
 from . import views
+from .sitemaps import SITEMAPS
 from django.conf.urls.static import static
 from django.conf import settings
 from django.http import JsonResponse
@@ -45,9 +47,10 @@ def health_check(request):
 
 
 urlpatterns = [
-    #path('admin/', admin.site.urls),
     path('securelogin/', admin.site.urls),
     path('', views.home, name='home'),
+    path('robots.txt', views.robots_txt, name='robots_txt'),
+    path('sitemap.xml', sitemap, {'sitemaps': SITEMAPS}, name='django.contrib.sitemaps.views.sitemap'),
     path('store/', include('store.urls')),
     path('cart/', include('carts.urls')),
     path('accounts/', include('accounts.urls')),

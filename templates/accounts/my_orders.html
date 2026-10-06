@@ -27,7 +27,7 @@
                 <th scope="row"><a href="{% url 'order_detail' order.order_number %}">#{{ order.order_number }}</a></th>
                 <td>{{ order.created_at|date:'M j, Y' }}</td>
                 <td>{{ order.full_name }}</td>
-                <td><span class="badge text-bg-light border">{{ order.status }}</span></td>
+                <td>{% include 'includes/order_status.html' with status=order.status %}</td>
                 <td class="text-end">${{ order.order_total }}</td>
               </tr>
               {% endfor %}

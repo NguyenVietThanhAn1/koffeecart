@@ -21,8 +21,10 @@ What was wrong with the original and how each problem was fixed is written up in
 - Guest cart that merges into the user's cart on login
 - Checkout with **cash on delivery**: the server decides amount, status and transaction id;
   stock is reserved with row locks so the last item cannot be sold twice
-- Accounts: email activation, password reset, profile, order history, printable invoices
+- Accounts: email activation, password reset, profile, order history with progress steps,
+  printable invoices, cancel an order while it is still new (stock goes back)
 - Bootstrap 5.3 UI, responsive down to phone width, no jQuery, strict Content-Security-Policy
+- `robots.txt`, `sitemap.xml` and per-product meta / Open Graph tags
 
 ## Architecture
 

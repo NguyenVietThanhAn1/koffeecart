@@ -1,4 +1,5 @@
-from django.db import models
+from django.db import models, transaction
+from django.db.models import F
 from accounts.models import Account
 from store.models import Product, Variation
 
@@ -45,6 +46,29 @@ class Order(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+
+    CANCELLABLE_BY_CUSTOMER = ('New',)  # once the shop accepted it, only the shop can cancel
+
+    def cancel(self):
+        """Cancel a placed order and put its items back in stock.
+
+        Safe to call twice or from two places at once: the order row is locked and an
+        already cancelled order is left alone, so stock is never returned twice.
+        Returns True when this call did the cancelling.
+        """
+        with transaction.atomic():
+            order = Order.objects.select_for_update().get(pk=self.pk)
+            if not order.is_ordered or order.status == 'Cancelled':
+                return False
+            for line in order.orderproduct_set.all():
+                # F(): the database adds to the current value, even if it changed meanwhile
+                Product.objects.filter(pk=line.product_id).update(stock=F('stock') + line.quantity)
+            order.status = 'Cancelled'
+            order.save(update_fields=['status', 'updated_at'])
+            if order.payment_id:
+                Payment.objects.filter(pk=order.payment_id, status='Pending').update(status='Cancelled')
+        self.status = 'Cancelled'
+        return True
 
     def full_name(self):
         return f'{self.first_name} {self.last_name}'

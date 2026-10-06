@@ -308,3 +308,14 @@ def order_detail(request, order_id):
         'subtotal': subtotal,
     }
     return render(request, 'accounts/order_detail.html', context)
+
+
+@login_required(login_url='login')
+@require_POST
+def cancel_order(request, order_id):
+    order = get_object_or_404(Order, order_number=order_id, user=request.user, is_ordered=True)
+    if order.status not in Order.CANCELLABLE_BY_CUSTOMER:
+        messages.error(request, 'This order is already being prepared and can no longer be cancelled. Please contact us.')
+    elif order.cancel():
+        messages.success(request, f'Order {order.order_number} has been cancelled.')
+    return redirect('order_detail', order_id=order.order_number)

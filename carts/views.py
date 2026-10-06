@@ -119,7 +119,7 @@ def _requested_quantity(request):
 
 @require_POST
 def add_cart(request, product_id):
-    product = get_object_or_404(Product, id=product_id)
+    product = get_object_or_404(Product, id=product_id, is_available=True)  # hidden products cannot be added
     owner = _owner(request, create=True)
     lines = CartItem.objects.filter(product=product, **owner).prefetch_related('variations')
 

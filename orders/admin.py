@@ -1,4 +1,4 @@
-from django.contrib import admin
+from django.contrib import admin, messages
 from .models import Payment, Order, OrderProduct
 
 
@@ -21,9 +21,33 @@ class OrderAdmin(admin.ModelAdmin):
     date_hierarchy = 'created_at'
     inlines = [OrderProductInline]
 
+    actions = ['cancel_orders']
+
     @admin.display(description='Payment', ordering='payment__status')
     def payment_status(self, order):
         return order.payment.status if order.payment else '-'
+
+    def save_model(self, request, obj, form, change):
+        # Also used by the editable "status" column of the list. Cancelling must go through
+        # Order.cancel() so the stock comes back; a cancelled order cannot be reopened,
+        # because its stock was already returned.
+        old_status = Order.objects.filter(pk=obj.pk).values_list('status', flat=True).first() if change else None
+        cancelling = old_status not in (None, 'Cancelled') and obj.status == 'Cancelled'
+        if old_status == 'Cancelled' and obj.status != 'Cancelled':
+            obj.status = 'Cancelled'
+            self.message_user(request, f'Order {obj.order_number} is cancelled and cannot be reopened. '
+                              'Ask the customer to order again.', messages.ERROR)
+        if cancelling:
+            obj.status = old_status  # saved as before; cancel() switches it and restocks
+        super().save_model(request, obj, form, change)
+        if cancelling:
+            obj.cancel()
+            self.message_user(request, f'Order {obj.order_number} cancelled, items put back in stock.')
+
+    @admin.action(description='Cancel selected orders and put items back in stock')
+    def cancel_orders(self, request, queryset):
+        cancelled = sum(order.cancel() for order in queryset)
+        self.message_user(request, f'{cancelled} order(s) cancelled.')
 
 
 @admin.register(Payment)
