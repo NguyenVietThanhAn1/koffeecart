@@ -12,7 +12,7 @@ File này nối tiếp [FIX_PLAN.md](FIX_PLAN.md): giữ nguyên thứ tự Phas
 | 4B | Xong: 17 regression test mới (fail trước khi sửa, pass sau). Kèm 2 lỗi phát hiện thêm trong admin (xem commit "Phase 4B") |
 | 5 | Xong: Bootstrap 5.3.8 (tải từ npm, đối chiếu sha512), bỏ jQuery/BS4/PayPal SDK, CSP, logout bằng POST, trang 404/500. Static 8,3 MB → 0,9 MB. Đã chạy thử luồng mua hàng trên trình duyệt |
 | 6 | Xong: `seed_demo` (ảnh vẽ bằng Pillow, chạy lại không tạo trùng, có test), README tiếng Anh, `docs/incidents.md`. Đã nạp dữ liệu mẫu vào `db.sqlite3` local (bản sao lưu: `db-backup-2026-10-06-before-upgrade.sqlite3`) |
-| 7 | Đang làm |
+| 7 | Xong: 7.2 rate limit Nginx, 7.3 backup có kiểm chứng + restore drill + systemd timer + tuỳ chọn rclone ra ngoài server, 7.4 `monitor.sh` viết lại (trả mã lỗi) + Uptime Kuma (profile `monitoring`). Thêm: shellcheck, `docs/DEPLOY_LINUX.md`. HTTPS (7.1) bỏ vì chưa có domain |
 
 Quyết định An đã chốt ngày 2026-10-06: **Python 3.14** (D1), **`uv pip compile`** (D2), VM **không có dữ liệu cần giữ** (D3, chỉ cần `down -v` rồi `up`), **không có domain** (D4), Phase 7 để Claude chọn (D5), An sẽ tự thu hồi Gmail app password (D6). Máy An tắt ảo hoá nên không chạy Docker local: Postgres, build image và smoke test chỉ kiểm chứng được trên CI.
 

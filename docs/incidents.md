@@ -54,3 +54,21 @@ failed before the change. Commit references are on the `upgrade/phase-3-7` histo
 - **Root cause**: the username was derived as `email.split("@")[0]` and the column is unique, so the second insert raised `IntegrityError`.
 - **Fix** (Phase 4B, R2): a unique username is generated (`an`, `an2`, ...). The email is the login; the username is only a display handle.
 - **Stays fixed**: `accounts/tests.py::test_register_same_local_part_different_domain`.
+
+---
+
+## 8. Backups could "succeed" while being empty
+
+- **Symptom** (found while reviewing, before it bit): if `pg_dump` failed, `backup.sh` still printed "Backup successful".
+- **Root cause**: in `pg_dump ... 2>/dev/null | gzip > file` the script only saw gzip's exit code (no `pipefail`), and a gzip of nothing is still a non-empty file, so the size check passed. The error message itself was thrown away.
+- **Fix** (Phase 7): `set -euo pipefail`, keep `pg_dump` errors, and verify each dump (`gzip -t` plus the "dump complete" footer) before calling it good; a weekly restore drill (systemd timer) proves the dumps can actually be restored.
+- **Stays fixed**: every CI run seeds the production stack, runs `backup.sh`, `restore-drill.sh` and a full `backup.sh restore`, then requires the stack to be healthy again.
+
+---
+
+## 9. Deploy script would not run on Linux
+
+- **Symptom** (found while reviewing, before it bit): every `.sh` file was stored in git as `100644` (not executable), so on a Linux clone `./deploy.sh`, including the CI deploy step, would fail with `Permission denied`.
+- **Root cause**: the repository is edited on Windows, which has no executable bit; git kept the mode the files were first added with.
+- **Fix** (Phase 7): `git update-index --chmod=+x` on every script.
+- **Stays fixed**: the CI lint job fails when any tracked `.sh` file is not `100755`, and runs shellcheck on all of them.

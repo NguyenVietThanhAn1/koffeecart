@@ -7,3 +7,4 @@ pytest-env
 pytest-cov
 ruff
 pip-audit
+shellcheck-py                # shellcheck binary for the deploy/backup scripts

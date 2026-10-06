@@ -48,3 +48,11 @@ Chi tiết từng bước ở [docs/CI_CD.md](CI_CD.md).
 ## Từ Phase 6
 - [ ] `db.sqlite3` local đã được migrate lên schema mới và nạp dữ liệu mẫu (giữ nguyên 6 sản phẩm, 5 đơn cũ). Bản gốc trước khi nâng cấp: `db-backup-2026-10-06-before-upgrade.sqlite3` (git bỏ qua). Xoá khi không cần nữa.
 - [ ] Sau lần deploy đầu lên Linux: `docker compose --env-file .env.prod -f docker-compose.prod.yml exec web python manage.py seed_demo` rồi `... exec web python manage.py createsuperuser`.
+
+## Từ Phase 7
+- [ ] Deploy lên Linux theo `docs/DEPLOY_LINUX.md` (Docker, ufw, `.env.prod`, `./deploy.sh --build`, `seed_demo`, `createsuperuser`).
+- [ ] Thêm `WEB_IMAGE=<dockerhub-user>/koffeecart` vào `.env.prod` trên server, để `./deploy.sh <tag>` và `--rollback` chạy tay vẫn kéo đúng image.
+- [ ] `sudo deploy/systemd/install.sh` để bật backup hằng đêm + restore drill hằng tuần; chạy thử một lần rồi xem `logs/backup.log`.
+- [ ] (Nên làm) Cấu hình rclone và `BACKUP_OFFSITE`, để có bản backup nằm ngoài server.
+- [ ] (Tuỳ chọn) Bật Uptime Kuma (`--profile monitoring`) và cài thông báo Telegram/email.
+- [ ] Khi có domain: làm 7.1 (HTTPS) rồi bật các biến `SECURE_*` (xem `docs/CI_CD.md`).

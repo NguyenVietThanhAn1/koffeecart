@@ -11,11 +11,17 @@ security ───────┘
 
 | Job | What it does | Fails the run when |
 | --- | --- | --- |
-| `lint` | `ruff check .`, `manage.py check --deploy --fail-level WARNING` (with all HTTPS settings on), `makemigrations --check` | lint error, insecure/incoherent settings, model change without a migration |
+| `lint` | `ruff check .`, shellcheck on every `.sh`, executable-bit check, `manage.py check --deploy --fail-level WARNING` (with all HTTPS settings on), `makemigrations --check` | lint error, shell script issue or non-executable script, insecure/incoherent settings, model change without a migration |
 | `test` | `pytest` against a `postgres:17` service container, coverage report | a test fails, coverage below 90% |
 | `security` | `pip-audit` on `requirements.txt`, Trivy source scan (vulnerabilities, secrets, misconfiguration) | a known vulnerable dependency, any CRITICAL finding |
-| `build` | builds the image **once** (GitHub Actions layer cache), Trivy image scan, starts the real prod stack with that image, checks `/health/`, static files and the home page, then pushes tags `sha-<commit>` and `latest` | CRITICAL vulnerability, stack not healthy, page checks fail |
+| `build` | builds the image **once** (GitHub Actions layer cache), Trivy image scan, starts the real prod stack with that image and checks it end to end (see below), then pushes tags `sha-<commit>` and `latest` | CRITICAL vulnerability, stack not healthy, any smoke check fails |
 | `deploy` | on the VM: checkout of the commit, `./deploy.sh sha-<commit>` (pull, replace containers, wait for `/health/`, roll back on failure) | new version never becomes healthy (the job also rolls back) |
+
+The smoke test on the real production stack checks, in order: every container healthy (`up --wait`),
+`/health/`, a stylesheet served by Nginx, the home page, the login rate limit (20 quick POSTs must
+produce `429`), `seed_demo` on PostgreSQL with photos served from the media volume, `backup.sh`,
+`restore-drill.sh`, a full `backup.sh restore` over the live database followed by a healthy stack
+again, and finally `monitor.sh` (exit code 0).
 
 Design choices worth knowing:
 

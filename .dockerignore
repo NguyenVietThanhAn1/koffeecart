@@ -22,6 +22,7 @@ Vagrantfile
 docker-compose*.yml
 nginx/
 *.sh
+deploy/
 # Tests and dev tooling stay out of the production image
 **/tests.py
 **/test_*.py

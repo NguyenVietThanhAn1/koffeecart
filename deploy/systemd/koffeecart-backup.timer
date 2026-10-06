@@ -1,0 +1,11 @@
+[Unit]
+Description=Nightly KoffeeCart database backup
+
+[Timer]
+OnCalendar=*-*-* 02:30:00
+RandomizedDelaySec=10min
+# If the server was off at 02:30, run the missed backup as soon as it is up again.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -91,11 +91,12 @@ lint ──► test ──┐
 security ───────┘
 ```
 
-- **lint**: ruff, `manage.py check --deploy --fail-level WARNING`, `makemigrations --check`
+- **lint**: ruff, shellcheck, `manage.py check --deploy --fail-level WARNING`, `makemigrations --check`
 - **test**: pytest on a real PostgreSQL 17 service (row-lock tests only mean something there), coverage gate 90%
 - **security**: `pip-audit` on the hashed lock file, Trivy filesystem scan (vulnerabilities, secrets, misconfiguration)
 - **build**: the image is built **once**, scanned by Trivy, started as the full production stack
-  (`docker compose up --wait`, no `sleep`), checked, then pushed as `sha-<commit>`
+  (`docker compose up --wait`, no `sleep`), smoke-tested (pages, rate limit, demo data, backup,
+  restore drill, full restore, monitor), then pushed as `sha-<commit>`
 - **deploy**: a self-hosted runner on the server runs `./deploy.sh sha-<commit>`: pull, replace
   containers, wait for `/health/`, **roll back automatically** if the new version is not healthy
 
@@ -113,13 +114,22 @@ Setup steps and manual deploy/rollback commands: [docs/CI_CD.md](docs/CI_CD.md).
   no user enumeration on "forgot password"
 - Container runs as a non-root user; secrets come from the environment
 
-## Backups
+## Operations
+
+Full server guide: [docs/DEPLOY_LINUX.md](docs/DEPLOY_LINUX.md).
 
 ```bash
-backups/backup.sh            # pg_dump | gzip into backups/, keeps 7 days
-backups/backup.sh list
-backups/backup.sh restore    # pick a dump to restore
+./monitor.sh                          # health report; exit code 1 on a critical problem
+backups/backup.sh                     # verified pg_dump (gzip + "dump complete" footer), 7-day retention
+backups/restore-drill.sh              # restore the newest dump into a throwaway DB and check it
+backups/backup.sh restore FILE --yes  # restore over the live database
+sudo deploy/systemd/install.sh        # nightly backup + weekly restore drill as systemd timers
 ```
+
+- **Backups** are verified when taken and proven restorable every week; `BACKUP_OFFSITE` copies them
+  off the server with rclone. CI runs backup, drill and a full restore on every build.
+- **Rate limiting** in Nginx: 10 POSTs/min per IP on login, register and password forms; 20 req/s per IP overall.
+- **Uptime alerts**: optional Uptime Kuma (`--profile monitoring`), reachable only through an SSH tunnel.
 
 ## Tests
 
@@ -141,7 +151,8 @@ carts/      guest and user carts, totals (carts/pricing.py)
 orders/     checkout, COD payment, order emails
 koffeecart/ settings, URLs, /health/, security headers middleware, static assets
 templates/  Bootstrap 5 templates
-nginx/      Nginx config         backups/  backup/restore script
+nginx/      Nginx config (rate limits)   backups/  backup, restore, restore drill
+deploy/     systemd timers for backups
 docs/       CI/CD guide, audit and upgrade plans, incident write-ups
 ```
 

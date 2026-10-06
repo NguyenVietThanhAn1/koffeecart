@@ -44,6 +44,18 @@ jobs:
       - name: ruff
         run: ruff check .
 
+      # deploy.sh, backups and monitoring run on the server: lint them like code.
+      - name: shellcheck
+        run: git ls-files -z '*.sh' | xargs -0 shellcheck
+
+      # A script committed from Windows loses its executable bit and ./deploy.sh fails on Linux.
+      - name: Shell scripts are executable
+        run: |
+          if git ls-files -s '*.sh' | grep -v '^100755'; then
+            echo "Fix with: git update-index --chmod=+x <file>"
+            exit 1
+          fi
+
       # Validates that the settings can express a fully hardened HTTPS deployment
       # (this is a config check; no secret is real).
       - name: Django deploy check (fails on any warning)
@@ -196,6 +208,28 @@ jobs:
           curl -fsS http://localhost/health/
           curl -fsSI http://localhost/static/css/koffee.css   # static files must come from nginx
           curl -fsS http://localhost/ | grep -qi koffeecart
+          # Login brute-force protection: 10 POSTs/min per IP (burst 5), so 20 quick POSTs
+          # must hit 429. Opening the login page (GET) is never limited.
+          codes=$(for _ in $(seq 1 20); do curl -s -o /dev/null -w '%{http_code}\n' -X POST http://localhost/accounts/login/; done)
+          echo "$codes" | sort | uniq -c
+          echo "$codes" | grep -qx 429
+          curl -fsS -o /dev/null http://localhost/accounts/login/
+
+          # Demo data on PostgreSQL; the generated photos are written to the media volume
+          # by the non-root app user and served by nginx.
+          $COMPOSE exec -T web python manage.py seed_demo
+          curl -fsS http://localhost/ | grep -q 'Vietnam Robusta'
+          curl -fsSI http://localhost/media/photos/products/vietnam-robusta-dak-lak.png
+
+          # Backups: dump (verified), restore drill into a throwaway DB, then a real restore
+          # over the live database, after which the stack must be healthy again.
+          ./backups/backup.sh
+          ./backups/restore-drill.sh
+          ./backups/backup.sh restore "$(find backups -name 'koffeecart_*.sql.gz' | sort | tail -n 1)" --yes
+          $COMPOSE up -d --no-build --wait --wait-timeout 120
+          curl -fsS http://localhost/health/
+          curl -fsS http://localhost/ | grep -q 'Vietnam Robusta'
+          ./monitor.sh
 
       - name: Log in to Docker Hub
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'

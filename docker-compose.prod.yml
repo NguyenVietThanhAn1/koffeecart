@@ -99,10 +99,31 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # Optional uptime monitoring with alerts (Telegram, email, Discord, ...). Not started by default:
+  #   docker compose --env-file .env.prod -f docker-compose.prod.yml --profile monitoring up -d
+  # The UI only listens on the server's loopback; open it through an SSH tunnel
+  # (ssh -L 3001:localhost:3001 user@server, then http://localhost:3001). Setup: docs/DEPLOY_LINUX.md
+  uptime-kuma:
+    image: louislam/uptime-kuma:2.5.5-slim
+    container_name: koffeecart_uptime
+    profiles: [monitoring]
+    restart: always
+    ports:
+      - "127.0.0.1:3001:3001"
+    volumes:
+      - uptime_data:/app/data
+    networks:
+      - koffeecart_network
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
 volumes:
   postgres_data:
   static_volume:
   media_volume:
+  uptime_data:
 
 networks:
   koffeecart_network:
