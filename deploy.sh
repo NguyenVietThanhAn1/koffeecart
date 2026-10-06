@@ -49,7 +49,10 @@ case "${1:-}" in
         echo "Rolling back to $NEW_TAG"
         ;;
     --build)
-        git pull --ff-only origin main
+        # The CI deploy leaves the clone on a detached commit, where "git pull" fails, so
+        # fetch and check out origin/main explicitly. No --force: local edits stop the deploy.
+        git fetch origin main
+        git checkout --detach origin/main
         NEW_TAG="local-$(git rev-parse --short HEAD)"
         echo "Building image tag $NEW_TAG"
         IMAGE_TAG=$NEW_TAG "${COMPOSE[@]}" build web

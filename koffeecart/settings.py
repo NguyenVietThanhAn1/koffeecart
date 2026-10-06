@@ -11,7 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
-from decouple import config
+from decouple import Csv, config
 from django.contrib.messages import constants as messages
  
 BASE_DIR = Path(__file__).resolve(strict=True).parent.parent
@@ -21,12 +21,10 @@ SECRET_KEY = config('SECRET_KEY')
 DEBUG = config('DEBUG', default=False, cast=bool)
 
  
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost').split(',')
+# Csv() strips spaces and drops empty items, so "localhost, 1.2.3.4" works too.
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost', cast=Csv())
 
-CSRF_TRUSTED_ORIGINS = config(
-    'CSRF_TRUSTED_ORIGINS',
-    default='http://localhost'
-).split(',')
+CSRF_TRUSTED_ORIGINS = config('CSRF_TRUSTED_ORIGINS', default='http://localhost', cast=Csv())
 
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
@@ -109,6 +107,10 @@ DATABASES = {
         "PASSWORD": config('DB_PASSWORD', default=''),
         "HOST": config('DB_HOST', default=''),
         "PORT": config('DB_PORT', default=''),
+        # Reuse a connection for up to 60 s instead of opening one per request; Django checks
+        # it is still alive before reusing it (e.g. after a database restart).
+        "CONN_MAX_AGE": config('DB_CONN_MAX_AGE', default=60, cast=int),
+        "CONN_HEALTH_CHECKS": True,
     }
 }
 
@@ -138,8 +140,6 @@ AUTH_PASSWORD_VALIDATORS = [
 LANGUAGE_CODE = 'en-us'
 
 TIME_ZONE = 'UTC'
-
-USE_L10N = True
 
 USE_I18N = True
 
@@ -177,6 +177,11 @@ EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
 EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
+# Sender of account and order emails. Gmail SMTP requires it to be the authenticated account.
+# "or": an empty DEFAULT_FROM_EMAIL= line in .env must also fall back (decouple returns '').
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='') or (
+    f'KoffeeCart <{EMAIL_HOST_USER}>' if EMAIL_HOST_USER else 'KoffeeCart <noreply@koffeecart.local>'
+)
 
 # Django already defaults to SECURE_CONTENT_TYPE_NOSNIFF = True and X_FRAME_OPTIONS = 'DENY'
 # (SECURE_BROWSER_XSS_FILTER was removed in Django 4.0), so nothing to set here.

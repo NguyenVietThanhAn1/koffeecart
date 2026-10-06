@@ -208,6 +208,13 @@ jobs:
           curl -fsS http://localhost/health/
           curl -fsSI http://localhost/static/css/koffee.css   # static files must come from nginx
           curl -fsS http://localhost/ | grep -qi koffeecart
+          # The app runs as a non-root user that cannot modify its own code, only uploads.
+          # (single quotes on purpose: $(id -u) must run inside the container)
+          # shellcheck disable=SC2016
+          $COMPOSE exec -T web sh -c 'test "$(id -u)" != 0 && test ! -w /app/manage.py && test -w /app/media'
+          # Admin login is rate limited like the shop's login.
+          admin_codes=$(for _ in $(seq 1 20); do curl -s -o /dev/null -w '%{http_code}\n' -X POST http://localhost/securelogin/login/; done)
+          echo "$admin_codes" | grep -qx 429
           # Login brute-force protection: 10 POSTs/min per IP (burst 5), so 20 quick POSTs
           # must hit 429. Opening the login page (GET) is never limited.
           codes=$(for _ in $(seq 1 20); do curl -s -o /dev/null -w '%{http_code}\n' -X POST http://localhost/accounts/login/; done)
@@ -218,6 +225,7 @@ jobs:
           # Demo data on PostgreSQL; the generated photos are written to the media volume
           # by the non-root app user and served by nginx.
           $COMPOSE exec -T web python manage.py seed_demo
+          $COMPOSE exec -T web python manage.py clearsessions   # what the daily timer runs
           curl -fsS http://localhost/ | grep -q 'Vietnam Robusta'
           curl -fsSI http://localhost/media/photos/products/vietnam-robusta-dak-lak.png
 

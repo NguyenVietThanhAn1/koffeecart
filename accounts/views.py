@@ -68,6 +68,7 @@ def register(request):
                     mail_subject = 'Please activate your account'
                     message = render_to_string('accounts/account_verification_email.html', {
                         'user': user,
+                        'protocol': 'https' if request.is_secure() else 'http',
                         'domain': current_site,
                         'uid': urlsafe_base64_encode(force_bytes(user.pk)),
                         'token': default_token_generator.make_token(user),
@@ -99,10 +100,12 @@ def login(request):
             merge_guest_cart(_cart_id(request), user)
             auth.login(request, user)
             messages.success(request, 'You are now logged in.')
-            # The login page is opened as /accounts/login/?next=/cart/checkout/,
-            # so read "next" from the Referer, but only follow it if it stays on this site.
-            referer = request.META.get('HTTP_REFERER', '')
-            next_url = parse_qs(urlparse(referer).query).get('next', [''])[0]
+            # The login form posts the ?next= it was opened with. Older pages may not have
+            # that field, so fall back to the Referer. Only follow it if it stays on this site.
+            next_url = request.POST.get('next', '')
+            if not next_url:
+                referer = request.META.get('HTTP_REFERER', '')
+                next_url = parse_qs(urlparse(referer).query).get('next', [''])[0]
             if next_url and url_has_allowed_host_and_scheme(
                 next_url,
                 allowed_hosts={request.get_host()},
@@ -157,13 +160,14 @@ def dashboard(request):
 def forgotPassword(request):
     if request.method == 'POST':
         email = request.POST.get('email', '')
-        user = Account.objects.filter(email__exact=email).first()
+        user = Account.objects.filter(email__iexact=email).first()
         if user is not None:
             try:
                 current_site = get_current_site(request)
                 mail_subject = 'Reset Your Password'
                 message = render_to_string('accounts/reset_password_email.html', {
                     'user': user,
+                    'protocol': 'https' if request.is_secure() else 'http',
                     'domain': current_site,
                     'uid': urlsafe_base64_encode(force_bytes(user.pk)),
                     'token': default_token_generator.make_token(user),
@@ -292,7 +296,8 @@ def change_password(request):
 @login_required(login_url='login')
 def order_detail(request, order_id):
     order = get_object_or_404(Order, order_number=order_id, user=request.user)
-    order_detail = OrderProduct.objects.filter(order=order)
+    order_detail = (OrderProduct.objects.filter(order=order)
+                    .select_related('product__category').prefetch_related('variations'))
     subtotal = 0
     for i in order_detail:
         subtotal += i.product_price * i.quantity

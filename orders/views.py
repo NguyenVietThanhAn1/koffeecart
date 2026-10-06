@@ -5,10 +5,10 @@ from django.http import HttpResponseBadRequest
 from django.contrib import messages
 from django.db import transaction
 from django.urls import reverse
+from django.utils import timezone
 from carts.models import CartItem
 from carts.pricing import calculate_totals
 from .forms import OrderForm
-import datetime
 from .models import Order, Payment, OrderProduct
 import logging
 import uuid
@@ -121,7 +121,8 @@ def place_order(request):
     current_user = request.user
 
     # If the cart is empty, send the user back to the shop
-    cart_items = CartItem.objects.filter(user=current_user).select_related('product')
+    cart_items = (CartItem.objects.filter(user=current_user)
+                  .select_related('product__category').prefetch_related('variations'))
     if not cart_items.exists():
         return redirect('store')
 
@@ -150,7 +151,7 @@ def place_order(request):
     order.ip = request.META.get('REMOTE_ADDR')
     order.save()
     # Order number = today's date + the order id, e.g. 202603051
-    order.order_number = datetime.date.today().strftime('%Y%m%d') + str(order.id)
+    order.order_number = timezone.localdate().strftime('%Y%m%d') + str(order.id)
     order.save()
 
     return render(request, 'orders/payments.html', {'order': order, **totals})
@@ -163,7 +164,8 @@ def order_complete(request):
 
     try:
         order = Order.objects.get(order_number=order_number, user=request.user, is_ordered=True)
-        ordered_products = OrderProduct.objects.filter(order_id=order.id).select_related('product')
+        ordered_products = (OrderProduct.objects.filter(order_id=order.id)
+                            .select_related('product__category').prefetch_related('variations'))
 
         subtotal = 0
         for i in ordered_products:

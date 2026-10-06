@@ -16,26 +16,16 @@ PRODUCTS_PER_PAGE = 6
 
 
 def store(request, category_slug=None):
-    categories = None
-    products = None
-
+    products = Product.objects.filter(is_available=True)
     if category_slug is not None:
-        categories = get_object_or_404(Category, slug=category_slug)
-        products = Product.objects.filter(category=categories, is_available=True).select_related('category').with_ratings().order_by('id')
-        paginator = Paginator(products, PRODUCTS_PER_PAGE)
-        page = request.GET.get('page')
-        paged_products = paginator.get_page(page)
-        product_count = products.count()
-    else:
-        products = Product.objects.filter(is_available=True).select_related('category').with_ratings().order_by('id')
-        paginator = Paginator(products, PRODUCTS_PER_PAGE)
-        page = request.GET.get('page')
-        paged_products = paginator.get_page(page)
-        product_count = products.count()
+        products = products.filter(category=get_object_or_404(Category, slug=category_slug))
+    # category for get_url(), ratings for the stars: a fixed number of queries per page
+    products = products.select_related('category').with_ratings().order_by('id')
 
+    paginator = Paginator(products, PRODUCTS_PER_PAGE)
     context = {
-        'products': paged_products,
-        'product_count': product_count,
+        'products': paginator.get_page(request.GET.get('page')),
+        'product_count': paginator.count,
     }
     return render(request, 'store/store.html', context)
 
@@ -52,7 +42,7 @@ def product_detail(request, category_slug, product_slug):
         orderproduct = None
 
     # Get the reviews
-    reviews = ReviewRating.objects.filter(product_id=single_product.id, status=True)
+    reviews = ReviewRating.objects.filter(product_id=single_product.id, status=True).select_related('user')
 
     # Get the product gallery
     product_gallery = ProductGallery.objects.filter(product_id=single_product.id)

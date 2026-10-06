@@ -119,6 +119,7 @@ tail logs/backup.log
   Dumps older than `BACKUP_RETENTION_DAYS` (default 7) are deleted.
 - **Sunday 03:30** `backups/restore-drill.sh`: restores the newest dump into a throwaway
   database, checks that accounts/products/migrations are there, logs how long it took, drops it.
+- **Daily 04:00** `clearsessions`: deletes expired login sessions, which Django never removes on its own.
 - **Off-server copy** (recommended: a backup on the same disk dies with the disk): install
   [rclone](https://rclone.org/install/), `rclone config` a remote (Backblaze B2, S3, Google Drive...),
   and set `BACKUP_OFFSITE=<remote>:<bucket-or-folder>` in `.env.prod`.

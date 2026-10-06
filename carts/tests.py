@@ -274,5 +274,6 @@ def test_cart_id_is_set_on_first_request(rf):
     request = rf.get('/')
     SessionMiddleware(lambda r: None).process_request(request)
     assert request.session.session_key is None
-    cart_id = _cart_id(request)
+    assert _cart_id(request) is None  # only looking: no session is created (V1)
+    cart_id = _cart_id(request, create=True)
     assert cart_id and cart_id == request.session.session_key

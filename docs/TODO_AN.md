@@ -52,7 +52,9 @@ Chi tiết từng bước ở [docs/CI_CD.md](CI_CD.md).
 ## Từ Phase 7
 - [ ] Deploy lên Linux theo `docs/DEPLOY_LINUX.md` (Docker, ufw, `.env.prod`, `./deploy.sh --build`, `seed_demo`, `createsuperuser`).
 - [ ] Thêm `WEB_IMAGE=<dockerhub-user>/koffeecart` vào `.env.prod` trên server, để `./deploy.sh <tag>` và `--rollback` chạy tay vẫn kéo đúng image.
-- [ ] `sudo deploy/systemd/install.sh` để bật backup hằng đêm + restore drill hằng tuần; chạy thử một lần rồi xem `logs/backup.log`.
+- [ ] `sudo deploy/systemd/install.sh` để bật backup hằng đêm, restore drill hằng tuần và dọn session hằng ngày; chạy thử một lần rồi xem `logs/backup.log`.
+- [ ] (Tuỳ chọn) `WEB_CONCURRENCY=<số worker gunicorn>` trong `.env.prod` (mặc định 3; thường lấy 2 × số CPU + 1).
+- [ ] Xử lý đơn COD trong admin: danh sách Order cho đổi `status` ngay tại chỗ, danh sách Payment cho đổi `Pending` → `Completed` khi đã thu tiền. Lưu ý: huỷ đơn chưa tự cộng lại tồn kho.
 - [ ] (Nên làm) Cấu hình rclone và `BACKUP_OFFSITE`, để có bản backup nằm ngoài server.
 - [ ] (Tuỳ chọn) Bật Uptime Kuma (`--profile monitoring`) và cài thông báo Telegram/email.
 - [ ] Khi có domain: làm 7.1 (HTTPS) rồi bật các biến `SECURE_*` (xem `docs/CI_CD.md`).

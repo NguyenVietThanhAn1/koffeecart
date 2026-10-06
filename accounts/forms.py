@@ -16,6 +16,14 @@ class RegistrationForm(forms.ModelForm):
         model = Account
         fields = ['first_name', 'last_name', 'phone_number', 'email', 'password']
 
+    def clean_email(self):
+        # The unique constraint only catches exact duplicates; "An@x.com" and "an@x.com" are
+        # the same mailbox, so they must be the same account.
+        email = self.cleaned_data['email']
+        if Account.objects.filter(email__iexact=email).exists():
+            raise forms.ValidationError('An account with this email already exists.')
+        return email
+
     def clean(self):
         cleaned_data = super(RegistrationForm, self).clean()
         password = cleaned_data.get('password')

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install the backup and restore-drill timers on the server.
+# Install the backup, restore-drill and session-cleanup timers on the server.
 #
 #   sudo deploy/systemd/install.sh [USER]
 #
@@ -26,6 +26,6 @@ for unit in "$UNIT_DIR"/*.service "$UNIT_DIR"/*.timer; do
 done
 
 systemctl daemon-reload
-systemctl enable --now koffeecart-backup.timer koffeecart-restore-drill.timer
+systemctl enable --now koffeecart-backup.timer koffeecart-restore-drill.timer koffeecart-clearsessions.timer
 systemctl list-timers 'koffeecart-*'
 echo "Installed for $RUN_USER in $DEPLOY_DIR. Run a backup now with: sudo systemctl start koffeecart-backup.service"

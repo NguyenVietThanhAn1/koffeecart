@@ -23,6 +23,20 @@ class MyAccountManager(BaseUserManager):
         user.save(using=self._db)
         return user
 
+    def get_by_natural_key(self, username):
+        # Log in with the email in any letter case: an exact match wins, otherwise a
+        # case-insensitive one. RegistrationForm stops new case-only duplicates.
+        field = self.model.USERNAME_FIELD
+        exact = self.filter(**{field: username}).first()
+        if exact is not None:
+            return exact
+        try:
+            return self.get(**{f'{field}__iexact': username})
+        except self.model.MultipleObjectsReturned:
+            # Case-only duplicates created before that check: ambiguous, so treat as unknown
+            # (ModelBackend turns DoesNotExist into a normal "invalid credentials").
+            raise self.model.DoesNotExist from None
+
     def create_superuser(self, first_name, last_name, email, username, password):
         user = self.create_user(
             email = self.normalize_email(email),

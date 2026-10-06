@@ -11,14 +11,17 @@ RUN pip install --no-cache-dir --require-hashes -r requirements.txt
 FROM python:3.14-slim
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PATH="/opt/venv/bin:$PATH"
+    PATH="/opt/venv/bin:$PATH" \
+    WEB_CONCURRENCY=3
 
 RUN groupadd --system --gid 1000 app \
     && useradd --system --uid 1000 --gid app --home-dir /app --shell /usr/sbin/nologin app
 
 WORKDIR /app
 COPY --from=builder /opt/venv /opt/venv
-COPY --chown=app:app . /app
+# The code belongs to root and is read-only for the app user: a compromised app process
+# cannot change it. Only collected static files and uploads are writable.
+COPY . /app
 RUN mkdir -p /app/staticfiles /app/media \
     && chown app:app /app/staticfiles /app/media
 
@@ -34,9 +37,11 @@ EXPOSE 8000
 HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/', timeout=3)" || exit 1
 
+# Workers come from WEB_CONCURRENCY (gunicorn reads it), so a server can change it in
+# .env.prod without a rebuild. /dev/shm keeps the worker heartbeat files off the container disk.
 CMD ["gunicorn", "koffeecart.wsgi:application", \
      "--bind", "0.0.0.0:8000", \
-     "--workers", "3", \
+     "--worker-tmp-dir", "/dev/shm", \
      "--timeout", "120", \
      "--access-logfile", "-", \
      "--error-logfile", "-"]

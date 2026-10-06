@@ -72,3 +72,13 @@ failed before the change. Commit references are on the `upgrade/phase-3-7` histo
 - **Root cause**: the repository is edited on Windows, which has no executable bit; git kept the mode the files were first added with.
 - **Fix** (Phase 7): `git update-index --chmod=+x` on every script.
 - **Stays fixed**: the CI lint job fails when any tracked `.sh` file is not `100755`, and runs shellcheck on all of them.
+
+---
+
+## 10. Every anonymous page view wrote a database session
+
+- **Symptom** (found in review): each visitor, and each crawler request, created a row in `django_session` just by opening a page, and the row was rewritten on every request; expired rows were never deleted.
+- **Root cause**: the cart badge context processor called `_cart_id()`, which creates a session when there is none; `SESSION_SAVE_EVERY_REQUEST` (for the sliding 1-hour logout) then saved it on every request. Django has no automatic cleanup of expired sessions.
+- **Fix**: a guest only gets a session when they put something in the cart; pages read the cart without creating one. A daily systemd timer runs `manage.py clearsessions`.
+- **Stays fixed**: `koffeecart/test_review_fixes.py::test_anonymous_browsing_creates_no_session`.
+
